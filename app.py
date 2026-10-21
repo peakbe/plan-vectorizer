@@ -4,10 +4,10 @@ import numpy as np
 from flask import Flask, render_template, request, send_file, jsonify
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+import fitz  # PyMuPDF pour convertir les PDF en images si besoin
 
 app = Flask(__name__)
 
-# Dossier temporaire pour stocker les fichiers PDF générés
 UPLOAD_FOLDER = 'temp'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -15,75 +15,69 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def index():
     return render_template('index.html')
 
-@app.route('/api/process', methods=['POST'])
-def process_image():
+@app.route('/api/detect-openings', methods=['POST'])
+def detect_openings():
+    """Simule l'IA qui détecte les ouvrants (portes/fenêtres) sur la photo d'un mur"""
     if 'file' not in request.files:
-        return jsonify({'error': 'Aucun fichier fourni'}), 400
+        return jsonify({'error': 'Aucune image fournie'}), 400
     
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'Nom de fichier vide'}), 400
-
-    # Lire l'image avec OpenCV
-    file_bytes = np.frombuffer(file.read(), np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-    if img is None:
-        return jsonify({'error': 'Format d’image invalide'}), 400
-
-    # Pipeline de traitement d'image (Vision par ordinateur)
-    # 1. Conversion en nuances de gris
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # 2. Flou pour éliminer le bruit du papier
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    # 3. Détection de contours de Canny (simule la détection des murs)
-    edges = cv2.Canny(blurred, 50, 150)
-
-    # Compter grossièrement les contours pour les stats de l'interface
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    detected_walls = len(contours) if len(contours) > 0 else 12
-
+    # Simulation d'une détection intelligente basée sur la longueur transmise
+    wall_length = float(request.form.get('wallLength', 300))
+    
+    # Génération d'ouvrants probables proportionnels au mur
+    simulated_openings = [
+        {"type": "porte", "position": round(wall_length * 0.2, 1), "width": 90},
+        {"type": "fenetre", "position": round(wall_length * 0.6, 1), "width": 120}
+    ]
+    
     return jsonify({
         'status': 'success',
-        'stats': {
-            'walls': min(detected_walls, 30),
-            'doors': 4,
-            'windows': 3
-        }
+        'openings': simulated_openings
     })
 
 @app.route('/api/export-pdf', methods=['POST'])
 def export_pdf():
-    pdf_path = os.path.join(UPLOAD_FOLDER, 'plan_maison_vectoriel.pdf')
+    """Génère le PDF vectoriel architectural final au format A4"""
+    pdf_path = os.path.join(UPLOAD_FOLDER, 'plan_architecte.pdf')
     
-    # Création d'un document PDF vectoriel propre avec ReportLab
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4 # 595.27 x 841.89 points
 
-    # En-tête du plan PDF
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, "PLAN VECTORIEL - ARCHITECTURE AI")
+    # Style papier chaud / Encre bleu nuit
+    c.setFillColorRGB(0.98, 0.96, 0.93) # Fond chaud
+    c.rect(0, 0, width, height, fill=1, stroke=0)
+
+    # En-tête architectural
+    c.setFillColorRGB(0.06, 0.09, 0.18) # Bleu nuit
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(40, height - 40, "DOSSIER ARCHITECTURAL - PLAN DE PROJET")
     
     c.setFont("Helvetica", 9)
-    c.drawString(50, height - 65, "Généré automatiquement par PlanVectorizer AI")
+    c.drawString(40, height - 55, "Échelle : 1:50 | Format A4 Vectoriel")
 
-    # Dessin vectoriel du plan (Murs en traits pleins épais)
+    # Cadre du plan
+    c.setStrokeColorRGB(0.06, 0.09, 0.18)
+    c.setLineWidth(1.5)
+    c.rect(40, 80, width - 80, height - 150)
+
+    # Simulation du dessin des murs (Terracotta & Bleu nuit)
     c.setLineWidth(4)
-    c.setStrokeColorRGB(0.1, 0.1, 0.1) # Gris foncé / Noir
-    c.rect(100, height - 500, 400, 300, stroke=1, fill=0)
-
-    # Cloisons intérieures
-    c.setLineWidth(2)
-    c.line(300, height - 500, 300, height - 200) # Mur vertical
-    c.line(300, height - 350, 500, height - 350) # Mur horizontal
-
-    # Légende / Pied de page
-    c.setFont("Helvetica-Oblique", 8)
-    c.drawString(50, 40, "Ce fichier est un vecteur natif, modifiable dans un logiciel DAO (AutoCAD, Illustrator, etc.).")
+    c.setStrokeColorRGB(0.06, 0.09, 0.18)
+    c.rect(80, height - 450, 300, 250, stroke=1, fill=0)
     
-    c.save()
+    # Touche Terracotta pour les cloisons secondaires
+    c.setStrokeColorRGB(0.81, 0.38, 0.27)
+    c.setLineWidth(2.5)
+    c.line(230, height - 450, 230, height - 300)
 
-    return send_file(pdf_path, as_attachment=True, download_name="plan_maison_vectoriel.pdf")
+    # Légende technique en bas
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, 60, "RÉCAPITULATIF DES SURFACES ET OUVRANTS")
+    c.setFont("Helvetica", 8)
+    c.drawString(50, 45, "Pièce principale : 18.5 m² | Chambres : 12.0 m² | Total : 30.5 m²")
+
+    c.save()
+    return send_file(pdf_path, as_attachment=True, download_name="plan_architecte.pdf")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
