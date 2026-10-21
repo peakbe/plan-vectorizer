@@ -4,7 +4,6 @@ import numpy as np
 from flask import Flask, render_template, request, send_file, jsonify
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-import fitz  # PyMuPDF pour convertir les PDF en images si besoin
 
 app = Flask(__name__)
 
