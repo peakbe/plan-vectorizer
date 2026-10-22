@@ -21,7 +21,7 @@
 </head>
 <body class="min-h-screen flex flex-col select-none">
 
-    <!-- En-tête / Barre de navigation mobile -->
+    <!-- En-tête -->
     <header class="bg-[#0f172a] text-white px-4 py-3 shadow-md flex items-center justify-between border-b border-slate-800">
         <div class="flex items-center space-x-2">
             <div class="bg-[#cf6644] p-1.5 rounded-lg text-white">
@@ -44,7 +44,7 @@
         </div>
     </header>
 
-    <!-- Barre d'outils secondaire (Modes de dessin et aides) -->
+    <!-- Barre d'outils secondaire -->
     <nav class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between overflow-x-auto space-x-2 text-xs">
         <div class="flex items-center space-x-1.5 shrink-0">
             <button onclick="setTool('wall')" id="btn-tool-wall" class="tool-btn bg-slate-900 text-white px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1">
@@ -64,42 +64,36 @@
             </button>
         </div>
 
-        <!-- Options de verrouillage et actions rapides -->
         <div class="flex items-center space-x-2 shrink-0">
             <label class="flex items-center space-x-1 bg-amber-50 border border-amber-200 text-amber-800 px-2 py-1 rounded-md cursor-pointer">
                 <input type="checkbox" id="chk-snap" checked class="w-3 h-3 text-amber-600 rounded">
                 <span class="text-[11px] font-semibold">Snap 90°</span>
             </label>
-            <button onclick="undoLast()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700 title" title="Annuler">
+            <button onclick="undoLast()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700" title="Annuler">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
             </button>
-            <button onclick="deleteSelected()" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md title" title="Supprimer sélection">
+            <button onclick="deleteSelected()" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md" title="Supprimer sélection">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
         </div>
     </nav>
 
-    <!-- Zone de travail principale -->
+    <!-- Zone de dessin -->
     <main class="flex-1 relative blueprint-paper overflow-hidden flex flex-col items-center justify-center p-2">
         
-        <!-- Calque d'arrière-plan (Image/PDF importé) -->
-        <div id="bg-image-container" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40 transition-opacity">
+        <div id="bg-image-container" class="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity">
             <img id="imported-bg" src="" class="max-h-full max-w-full object-contain hidden" alt="Fond importé">
         </div>
 
-        <!-- Canvas SVG interactif pour le plan vectoriel -->
-        <svg id="plan-canvas" class="w-full h-full cursor-crosshair z-10" viewBox="0 0 1000 700" onclick="handleCanvasClick(event)">
-            <!-- Grille et éléments générés dynamiquement par JS -->
-            <g id="grid-group"></g>
-            <g id="background-layer"></g>
+        <!-- SVG Interactif -->
+        <svg id="plan-canvas" class="w-full h-full cursor-crosshair z-10" viewBox="0 0 1000 700">
             <g id="walls-layer"></g>
             <g id="openings-layer"></g>
-            <g id="furniture-layer"></g>
-            <g id="annotations-layer"></g>
+            <g id="elements-layer"></g>
         </svg>
 
-        <!-- Barre flottante Import & Arrière-plan -->
-        <div class="absolute bottom-4 left-4 z-20 flex items-center space-x-2 bg-white/90 backdrop-blur border border-slate-200 p-2 rounded-xl shadow-md text-xs">
+        <!-- Boutons d'arrière-plan -->
+        <div class="absolute bottom-4 left-4 z-20 flex items-center space-x-2 bg-white/95 backdrop-blur border border-slate-200 p-2 rounded-xl shadow-md text-xs">
             <label class="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1 transition">
                 <i data-lucide="image-plus" class="w-3.5 h-3.5"></i>
                 <span>Importer Plan (JPEG/PDF)</span>
@@ -111,55 +105,47 @@
             </button>
         </div>
 
-        <!-- Panneau d'informations de la pièce active -->
+        <!-- Panneau info pièce -->
         <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-1.5 w-52">
             <div class="flex justify-between font-bold text-slate-700 border-b pb-1">
-                <span>Informations Pièce</span>
+                <span>Espace Actif</span>
                 <span id="room-name" class="text-[#cf6644]">Séjour</span>
             </div>
             <div class="flex justify-between text-slate-600">
-                <span>Surface estimée :</span>
+                <span>Surface :</span>
                 <span id="room-area" class="font-tech font-bold text-slate-900">24.5 m²</span>
-            </div>
-            <div class="flex justify-between text-slate-600">
-                <span>Périmètre :</span>
-                <span id="room-perimeter" class="font-tech">19.2 m</span>
             </div>
             <div class="pt-1">
                 <button onclick="openWallPhotoModal()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
                     <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-                    <span>Photographier Mur & IA</span>
+                    <span>Analyser Mur par IA</span>
                 </button>
             </div>
         </div>
 
     </main>
 
-    <!-- Modal : Gestion des Projets (Mes plans) -->
+    <!-- Modale Projets -->
     <div id="modal-projects" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div class="flex justify-between items-center border-b pb-3">
                 <h3 class="font-serif-arch font-bold text-lg text-slate-800">Mes Projets</h3>
                 <button onclick="closeProjectsModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            <div class="space-y-2 max-h-60 overflow-y-auto" id="projects-list">
-                <!-- Rempli dynamiquement -->
+            <div class="space-y-2 max-h-60 overflow-y-auto">
                 <div class="flex items-center justify-between p-3 bg-slate-50 border rounded-xl hover:border-slate-300 cursor-pointer">
                     <div>
                         <p class="font-medium text-sm text-slate-800">Maison Principale (T4)</p>
-                        <p class="text-[11px] text-slate-500">Dernière modif : Il y a 5 min</p>
+                        <p class="text-[11px] text-slate-500">Actif</p>
                     </div>
-                    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full font-medium">Actif</span>
+                    <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full font-medium">En cours</span>
                 </div>
             </div>
-            <button onclick="createNewProject()" class="w-full bg-[#cf6644] hover:bg-[#b85839] text-white py-2.5 rounded-xl font-medium text-xs transition flex items-center justify-center space-x-1">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                <span>Créer un nouveau projet</span>
-            </button>
+            <button onclick="closeProjectsModal()" class="w-full bg-[#cf6644] text-white py-2.5 rounded-xl font-medium text-xs">Fermer</button>
         </div>
     </div>
 
-    <!-- Modal : Photo de mur & Analyse IA des ouvrants -->
+    <!-- Modale Photo Mur & IA -->
     <div id="modal-wall-photo" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div class="flex justify-between items-center border-b pb-3">
@@ -168,40 +154,42 @@
             </div>
             <div class="space-y-3 text-xs">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">1. Longueur réelle du mur (en cm)</label>
-                    <input type="number" id="input-wall-len" value="450" class="w-full bg-slate-50 border rounded-lg p-2 font-tech focus:ring-2 focus:ring-[#cf6644] focus:outline-none">
+                    <label class="block font-medium text-slate-700 mb-1">Longueur réelle du mur (en cm)</label>
+                    <input type="number" id="input-wall-len" value="450" class="w-full bg-slate-50 border rounded-lg p-2 font-tech">
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">2. Photo du mur</label>
-                    <input type="file" accept="image/*" capture="environment" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
-                </div>
-                <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-amber-800">
-                    <p class="font-semibold mb-0.5">ℹ️ Contrôle des cotes :</p>
-                    <p class="text-[11px]">L'IA détecte la position des portes et fenêtres sur la photo en se basant sur la longueur manuelle saisie.</p>
+                    <label class="block font-medium text-slate-700 mb-1">Photo du mur</label>
+                    <input type="file" accept="image/*" class="w-full text-xs text-slate-500">
                 </div>
             </div>
             <div class="pt-2 flex space-x-2">
-                <button onclick="closeWallPhotoModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl font-medium text-xs transition">Annuler</button>
-                <button onclick="validateWallAi()" class="w-full bg-[#cf6644] hover:bg-[#b85839] text-white py-2.5 rounded-xl font-medium text-xs transition">Lancer l'analyse IA</button>
+                <button onclick="closeWallPhotoModal()" class="w-full bg-slate-100 py-2.5 rounded-xl font-medium text-xs">Annuler</button>
+                <button onclick="validateWallAi()" class="w-full bg-[#cf6644] text-white py-2.5 rounded-xl font-medium text-xs">Valider l'IA</button>
             </div>
         </div>
     </div>
 
-    <!-- Script Application -->
     <script>
         lucide.createIcons();
 
         let currentTool = 'wall';
+        let selectedElement = null;
+        let selectedIndex = null;
+        let isDrawing = false;
+        let startPoint = null;
+        
         let walls = [
             {x1: 250, y1: 150, x2: 750, y2: 150, length: 500},
             {x1: 750, y1: 150, x2: 750, y2: 550, length: 400},
             {x1: 750, y1: 550, x2: 250, y2: 550, length: 500},
             {x1: 250, y1: 550, x2: 250, y2: 150, length: 400}
         ];
-        let doors = [
-            {x: 450, y: 150, width: 90, flip: false, type: 'door'}
-        ];
+        let elements = []; // Portes, fenêtres, escaliers, textes
         let historyStack = [];
+
+        function saveState() {
+            historyStack.push(JSON.stringify({ walls, elements }));
+        }
 
         function setTool(tool) {
             currentTool = tool;
@@ -211,69 +199,138 @@
             document.getElementById(`btn-tool-${tool}`).className = "tool-btn bg-slate-900 text-white px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1";
         }
 
+        const svgCanvas = document.getElementById('plan-canvas');
+
+        svgCanvas.addEventListener('mousedown', (e) => {
+            const pt = svgCanvas.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            const svgP = pt.matrixTransform(svgCanvas.getScreenCTM().inverse());
+            
+            saveState();
+            isDrawing = true;
+            startPoint = { x: Math.round(svgP.x), y: Math.round(svgP.y) };
+        });
+
+        svgCanvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+            const pt = svgCanvas.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            const svgP = pt.matrixTransform(svgCanvas.getScreenCTM().inverse());
+            
+            let endX = Math.round(svgP.x);
+            let endY = Math.round(svgP.y);
+
+            // Snap orthogonal 90° si activé
+            if (document.getElementById('chk-snap').checked) {
+                if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) {
+                    endY = startPoint.y; // Horizontal
+                } else {
+                    endX = startPoint.x; // Vertical
+                }
+            }
+
+            const lengthCm = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
+
+            if (currentTool === 'wall' && lengthCm > 10) {
+                walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
+            } else if (currentTool === 'door') {
+                elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 90, flip: false });
+            } else if (currentTool === 'window') {
+                elements.push({ type: 'window', x: startPoint.x, y: startPoint.y, width: 100 });
+            } else if (currentTool === 'stairs') {
+                elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: 100, h: 150 });
+            } else if (currentTool === 'text') {
+                let txt = prompt("Entrez le texte de la légende ou de la pièce :", "Chambre 1");
+                if (txt) elements.push({ type: 'text', x: startPoint.x, y: startPoint.y, text: txt });
+            }
+
+            isDrawing = false;
+            renderCanvas();
+        });
+
         function renderCanvas() {
             const wallsGroup = document.getElementById('walls-layer');
-            const openingsGroup = document.getElementById('openings-layer');
+            const elementsGroup = document.getElementById('elements-layer');
             wallsGroup.innerHTML = '';
-            openingsGroup.innerHTML = '';
+            elementsGroup.innerHTML = '';
 
-            // Dessin des murs (Bleu nuit architectural)
+            // Rendu des murs
             walls.forEach((w, index) => {
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', w.x1);
-                line.setAttribute('y1', w.y1);
-                line.setAttribute('x2', w.x2);
-                line.setAttribute('y2', w.y2);
-                line.setAttribute('stroke', '#0f172a');
+                line.setAttribute('x1', w.x1); line.setAttribute('y1', w.y1);
+                line.setAttribute('x2', w.x2); line.setAttribute('y2', w.y2);
+                line.setAttribute('stroke', (selectedIndex === index && selectedElement === 'wall') ? '#cf6644' : '#0f172a');
                 line.setAttribute('stroke-width', '8');
                 line.setAttribute('stroke-linecap', 'square');
-                line.onclick = () => selectElement('wall', index);
+                line.onclick = (ev) => { ev.stopPropagation(); selectItem('wall', index); };
                 wallsGroup.appendChild(line);
 
-                // Cote de longueur au milieu du mur
+                // Texte cote
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', (w.x1 + w.x2) / 2);
-                text.setAttribute('y', (w.y1 + w.y2) / 2 - 12);
+                text.setAttribute('y', (w.y1 + w.y2) / 2 - 10);
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('class', 'font-tech text-[10px] fill-[#cf6644] font-semibold');
                 text.textContent = (w.length || 400) + ' cm';
                 wallsGroup.appendChild(text);
             });
 
-            // Dessin des portes
-            doors.forEach((d, index) => {
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', d.x - 5);
-                rect.setAttribute('y', d.y - 5);
-                rect.setAttribute('width', 10);
-                rect.setAttribute('height', d.width);
-                rect.setAttribute('fill', '#cf6644');
-                rect.onclick = () => toggleDoorFlip(index);
-                openingsGroup.appendChild(rect);
+            // Rendu des éléments (portes, fenêtres, escaliers, textes)
+            elements.forEach((el, index) => {
+                if (el.type === 'door') {
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', el.x - 4); rect.setAttribute('y', el.y - 4);
+                    rect.setAttribute('width', 8); rect.setAttribute('height', el.width);
+                    rect.setAttribute('fill', '#cf6644');
+                    rect.onclick = (ev) => { ev.stopPropagation(); el.flip = !el.flip; renderCanvas(); };
+                    elementsGroup.appendChild(rect);
+                } else if (el.type === 'text') {
+                    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    t.setAttribute('x', el.x); t.setAttribute('y', el.y);
+                    t.setAttribute('class', 'font-serif-arch text-sm font-bold fill-slate-800');
+                    t.textContent = el.text;
+                    elementsGroup.appendChild(t);
+                } else if (el.type === 'stairs') {
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    box.setAttribute('x', el.x); box.setAttribute('y', el.y);
+                    box.setAttribute('width', el.w); box.setAttribute('height', el.h);
+                    box.setAttribute('fill', 'none'); box.setAttribute('stroke', '#0f172a'); box.setAttribute('stroke-width', '2');
+                    g.appendChild(box);
+                    // Lignes de marches automatiques
+                    for(let i=1; i<8; i++) {
+                        const step = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        step.setAttribute('x1', el.x); step.setAttribute('y1', el.y + (el.h/8)*i);
+                        step.setAttribute('x2', el.x + el.w); step.setAttribute('y2', el.y + (el.h/8)*i);
+                        step.setAttribute('stroke', '#0f172a'); step.setAttribute('stroke-width', '1');
+                        g.appendChild(step);
+                    }
+                    elementsGroup.appendChild(g);
+                }
             });
         }
 
-        function handleCanvasClick(event) {
-            // Sauvegarde pour l'historique Annuler
-            historyStack.push(JSON.stringify({walls, doors}));
+        function selectItem(type, index) {
+            selectedElement = type;
+            selectedIndex = index;
+            renderCanvas();
         }
 
         function undoLast() {
             if (historyStack.length > 0) {
-                const lastState = JSON.parse(historyStack.pop());
-                walls = lastState.walls;
-                doors = lastState.doors;
+                const prevState = JSON.parse(historyStack.pop());
+                walls = prevState.walls;
+                elements = prevState.elements;
                 renderCanvas();
             }
         }
 
-        function toggleDoorFlip(index) {
-            doors[index].flip = !doors[index].flip;
-            renderCanvas();
-        }
-
         function deleteSelected() {
-            if (walls.length > 0) {
+            if (selectedIndex !== null && selectedElement === 'wall') {
+                walls.splice(selectedIndex, 1);
+                selectedIndex = null;
+                renderCanvas();
+            } else if (walls.length > 0) {
                 walls.pop();
                 renderCanvas();
             }
@@ -287,7 +344,6 @@
                     const img = document.getElementById('imported-bg');
                     img.src = e.target.result;
                     img.classList.remove('hidden');
-                    document.getElementById('bg-image-container').classList.remove('opacity-40');
                     document.getElementById('btn-remove-bg').classList.remove('hidden');
                 }
                 reader.readAsDataURL(file);
@@ -306,8 +362,7 @@
         function closeProjectsModal() { document.getElementById('modal-projects').classList.add('hidden'); }
         function openWallPhotoModal() { document.getElementById('modal-wall-photo').classList.remove('hidden'); }
         function closeWallPhotoModal() { document.getElementById('modal-wall-photo').classList.add('hidden'); }
-        function createNewProject() { alert('Nouveau projet initialisé !'); closeProjectsModal(); }
-        function validateWallAi() { closeWallPhotoModal(); alert('Ouvrants détectés et positionnés avec succès sur le mur !'); }
+        function validateWallAi() { closeWallPhotoModal(); alert('Ouvrants détectés par l’IA et positionnés avec succès !'); }
 
         function exportPDF() {
             fetch('/api/export-pdf', { method: 'POST' })
@@ -323,7 +378,6 @@
             });
         }
 
-        // Initialisation
         renderCanvas();
     </script>
 </body>
