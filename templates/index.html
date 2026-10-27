@@ -54,10 +54,10 @@
                 <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i><span>Mur</span>
             </button>
             <button onclick="setTool('door')" id="btn-tool-door" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
-                <i data-lucide="door-open" class="w-3.5 h-3.5"></i><span>Porte</span>
+                <i data-lucide="door-open" class="w-3.5 h-3.5 text-blue-600"></i><span>Porte</span>
             </button>
             <button onclick="setTool('window')" id="btn-tool-window" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
-                <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i><span>Fenêtre</span>
+                <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-600"></i><span>Fenêtre</span>
             </button>
             <button onclick="setTool('stairs')" id="btn-tool-stairs" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="align-justify" class="w-3.5 h-3.5"></i><span>Escalier</span>
@@ -72,10 +72,13 @@
                 <input type="checkbox" id="chk-snap" checked class="w-3 h-3 text-amber-600 rounded">
                 <span class="text-[11px] font-semibold">Snap 90°</span>
             </label>
-            <button onclick="undoLast()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700" title="Annuler">
+            <button onclick="rotateSelected()" class="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition" title="Pivoter de 90°">
+                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+            </button>
+            <button onclick="undoLast()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700 transition" title="Annuler">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
             </button>
-            <button onclick="deleteSelected()" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md" title="Supprimer la sélection">
+            <button onclick="deleteSelected()" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md transition" title="Supprimer la sélection">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
         </div>
@@ -108,19 +111,23 @@
         </div>
 
         <!-- Panneau info pièce -->
-        <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-1.5 w-52">
+        <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-1.5 w-56">
             <div class="flex justify-between font-bold text-slate-700 border-b pb-1">
                 <span>Mode Actif</span>
                 <span id="active-mode-label" class="text-[#cf6644]">Mur</span>
             </div>
             <div class="flex justify-between text-slate-600">
-                <span>Élément sélectionné :</span>
+                <span>Sélection :</span>
                 <span id="selected-info" class="font-tech text-slate-900">Aucun</span>
             </div>
-            <div class="pt-1">
-                <button onclick="openWallPhotoModal()" class="w-full bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
-                    <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-                    <span>Analyser Mur par IA</span>
+            <div class="pt-1 flex space-x-1">
+                <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
+                    <i data-lucide="rotate-cw" class="w-3 h-3"></i>
+                    <span>Pivoter 90°</span>
+                </button>
+                <button onclick="openWallPhotoModal()" class="w-1/2 bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
+                    <i data-lucide="camera" class="w-3 h-3"></i>
+                    <span>IA Mur</span>
                 </button>
             </div>
         </div>
@@ -188,9 +195,10 @@
             {x1: 250, y1: 550, x2: 250, y2: 150, length: 400}
         ];
         let elements = [
-            { type: 'door', x: 450, y: 150, width: 90, flip: false },
-            { type: 'stairs', x: 550, y: 300, w: 100, h: 150 },
-            { type: 'text', x: 300, y: 250, text: 'Séjour' }
+            { type: 'door', x: 450, y: 150, width: 80, rotation: 0 },
+            { type: 'window', x: 600, y: 150, width: 100, rotation: 0 },
+            { type: 'stairs', x: 550, y: 300, w: 100, h: 150, rotation: 0 },
+            { type: 'text', x: 300, y: 250, text: 'Séjour', rotation: 0 }
         ];
         let historyStack = [];
 
@@ -205,7 +213,6 @@
                 btn.className = "tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200";
             });
             document.getElementById(`btn-tool-${tool}`).className = "tool-btn bg-slate-900 text-white px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1";
-            
             svgCanvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
         }
 
@@ -223,12 +230,10 @@
             const y = Math.round(svgP.y);
 
             if (currentTool === 'select') {
-                // Mode sélection / déplacement : on vérifie si on clique sur un élément ou un mur
-                // Pour simplifier, on regarde d'abord les éléments (portes, textes, escaliers)
                 let foundElIndex = elements.findIndex(el => {
                     let w = el.w || el.width || 50;
                     let h = el.h || 50;
-                    return x >= el.x - 10 && x <= el.x + w + 10 && y >= el.y - 10 && y <= el.y + h + 10;
+                    return x >= el.x - 15 && x <= el.x + w + 15 && y >= el.y - 15 && y <= el.y + h + 15;
                 });
 
                 if (foundElIndex !== -1) {
@@ -241,7 +246,6 @@
                     return;
                 }
 
-                // Sinon on vérifie les murs (proche du centre ou des extrémités)
                 let foundWallIndex = walls.findIndex(w => {
                     let dist = distToSegment({x, y}, {x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
                     return dist < 12;
@@ -254,12 +258,10 @@
                     return;
                 }
 
-                // Clic dans le vide -> désélection
                 selectedItem = null;
                 document.getElementById('selected-info').textContent = 'Aucun';
                 renderCanvas();
             } else {
-                // Mode dessin
                 saveState();
                 isDrawing = true;
                 startPoint = { x, y };
@@ -305,27 +307,38 @@
             if (currentTool === 'wall' && lengthCm > 10) {
                 walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
             } else if (currentTool === 'door') {
-                elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 90, flip: false });
+                elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0 });
             } else if (currentTool === 'window') {
-                elements.push({ type: 'window', x: startPoint.x, y: startPoint.y, width: 100 });
+                elements.push({ type: 'window', x: startPoint.x, y: startPoint.y, width: 100, rotation: 0 });
             } else if (currentTool === 'stairs') {
-                elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: 100, h: 150 });
+                elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: 100, h: 150, rotation: 0 });
             } else if (currentTool === 'text') {
                 let txt = prompt("Texte de la pièce ou légende :", "Chambre");
-                if (txt) elements.push({ type: 'text', x: startPoint.x, y: startPoint.y, text: txt });
+                if (txt) elements.push({ type: 'text', x: startPoint.x, y: startPoint.y, text: txt, rotation: 0 });
             }
 
             isDrawing = false;
             renderCanvas();
         });
 
-        // Fonction utilitaire calcul distance point/segment
         function distToSegment(p, p1, p2) {
             let l2 = (p2.x - p1.x)*(p2.x - p1.x) + (p2.y - p1.y)*(p2.y - p1.y);
             if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
             let t =((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2;
             t = Math.max(0, Math.min(1, t));
             return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
+        }
+
+        // Fonction pour faire pivoter l'élément sélectionné de 90° à chaque clic
+        function rotateSelected() {
+            if (!selectedItem || selectedItem.type !== 'element') {
+                alert("Veuillez sélectionner une porte ou une fenêtre avec l'outil 'Sélectionner' pour la faire pivoter.");
+                return;
+            }
+            saveState();
+            let el = elements[selectedItem.index];
+            el.rotation = (el.rotation + 90) % 360;
+            renderCanvas();
         }
 
         function renderCanvas() {
@@ -354,39 +367,83 @@
                 wallsGroup.appendChild(text);
             });
 
-            // Rendu des éléments (portes, escaliers, textes)
+            // Rendu des éléments (portes, fenêtres, escaliers, textes)
             elements.forEach((el, index) => {
                 let isSelected = (selectedItem && selectedItem.type === 'element' && selectedItem.index === index);
-                
+                let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0})`);
+
                 if (el.type === 'door') {
-                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    rect.setAttribute('x', el.x - 4); rect.setAttribute('y', el.y - 4);
-                    rect.setAttribute('width', 8); rect.setAttribute('height', el.width);
-                    rect.setAttribute('fill', isSelected ? '#e056fd' : '#cf6644');
-                    rect.style.cursor = 'grab';
-                    elementsGroup.appendChild(rect);
+                    // Symbole standard de porte (Bleu) : Arc d'ouverture + Vantail à 90°
+                    const width = el.width || 80;
+                    
+                    // Arc d'ouverture (quart de cercle)
+                    const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    arc.setAttribute('d', `M 0 0 A ${width} ${width} 0 0 1 ${width} -${width}`);
+                    arc.setAttribute('fill', 'none');
+                    arc.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
+                    arc.setAttribute('stroke-width', '1.5');
+                    arc.setAttribute('stroke-dasharray', '3,3');
+                    g.appendChild(arc);
+
+                    // Battant/Panneau de porte ouvert à 90°
+                    const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    leaf.setAttribute('x1', '0'); leaf.setAttribute('y1', '0');
+                    leaf.setAttribute('x2', '0'); leaf.setAttribute('y2', `-${width}`);
+                    leaf.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
+                    leaf.setAttribute('stroke-width', '3');
+                    g.appendChild(leaf);
+
+                    // Cadre de base
+                    const base = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    base.setAttribute('x1', '0'); base.setAttribute('y1', '0');
+                    base.setAttribute('x2', `${width}`); base.setAttribute('y2', '0');
+                    base.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
+                    base.setAttribute('stroke-width', '4');
+                    g.appendChild(base);
+
+                } else if (el.type === 'window') {
+                    // Symbole de fenêtre (Vert) : Double vitrage encadré
+                    const width = el.width || 100;
+                    const winRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    winRect.setAttribute('x', '0'); winRect.setAttribute('y', '-4');
+                    winRect.setAttribute('width', `${width}`); winRect.setAttribute('height', '8');
+                    winRect.setAttribute('fill', '#e6f4ea');
+                    winRect.setAttribute('stroke', isSelected ? '#e056fd' : '#16a34a');
+                    winRect.setAttribute('stroke-width', '2');
+                    g.appendChild(winRect);
+
+                    // Ligne centrale de vitre
+                    const glassLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    glassLine.setAttribute('x1', '0'); glassLine.setAttribute('y1', '0');
+                    glassLine.setAttribute('x2', `${width}`); glassLine.setAttribute('y2', '0');
+                    glassLine.setAttribute('stroke', '#16a34a');
+                    glassLine.setAttribute('stroke-width', '1');
+                    g.appendChild(glassLine);
+
                 } else if (el.type === 'text') {
                     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    t.setAttribute('x', el.x); t.setAttribute('y', el.y);
+                    t.setAttribute('x', '0'); t.setAttribute('y', '0');
                     t.setAttribute('class', `font-serif-arch text-sm font-bold ${isSelected ? 'fill-[#cf6644]' : 'fill-slate-800'}`);
                     t.textContent = el.text;
-                    elementsGroup.appendChild(t);
+                    g.appendChild(t);
+
                 } else if (el.type === 'stairs') {
-                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                     const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    box.setAttribute('x', el.x); box.setAttribute('y', el.y);
+                    box.setAttribute('x', '0'); box.setAttribute('y', '0');
                     box.setAttribute('width', el.w); box.setAttribute('height', el.h);
                     box.setAttribute('fill', '#fff'); box.setAttribute('stroke', isSelected ? '#cf6644' : '#0f172a'); box.setAttribute('stroke-width', isSelected ? '3' : '2');
                     g.appendChild(box);
                     for(let i=1; i<8; i++) {
                         const step = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        step.setAttribute('x1', el.x); step.setAttribute('y1', el.y + (el.h/8)*i);
-                        step.setAttribute('x2', el.x + el.w); step.setAttribute('y2', el.y + (el.h/8)*i);
+                        step.setAttribute('x1', '0'); step.setAttribute('y1', (el.h/8)*i);
+                        step.setAttribute('x2', el.w); step.setAttribute('y2', (el.h/8)*i);
                         step.setAttribute('stroke', '#0f172a'); step.setAttribute('stroke-width', '1');
                         g.appendChild(step);
                     }
-                    elementsGroup.appendChild(g);
                 }
+
+                elementsGroup.appendChild(g);
             });
         }
 
