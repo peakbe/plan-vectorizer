@@ -72,9 +72,6 @@
                 <input type="checkbox" id="chk-snap" checked class="w-3 h-3 text-amber-600 rounded">
                 <span class="text-[11px] font-semibold">Snap 90°</span>
             </label>
-            <button onclick="rotateSelected()" class="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition" title="Pivoter de 90°">
-                <i data-lucide="rotate-cw" class="w-4 h-4"></i>
-            </button>
             <button onclick="undoLast()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-700 transition" title="Annuler">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
             </button>
@@ -113,23 +110,12 @@
         <!-- Panneau de Propriétés & Mesures (Interactif) -->
         <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-2 w-64">
             <div class="flex justify-between font-bold text-slate-700 border-b pb-1">
-                <span>Propriétés & Mesures</span>
+                <span>Propriétés & Édition</span>
                 <span id="selected-type-label" class="text-[#cf6644]">Aucun</span>
             </div>
             
             <div id="property-editor" class="space-y-2 text-slate-600">
-                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant pour modifier sa dimension.</p>
-            </div>
-
-            <div class="pt-2 border-t flex space-x-1">
-                <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
-                    <i data-lucide="rotate-cw" class="w-3 h-3"></i>
-                    <span>Pivoter 90°</span>
-                </button>
-                <button onclick="openWallPhotoModal()" class="w-1/2 bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
-                    <i data-lucide="camera" class="w-3 h-3"></i>
-                    <span>IA Mur</span>
-                </button>
+                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant.</p>
             </div>
         </div>
 
@@ -155,26 +141,30 @@
         </div>
     </div>
 
-    <!-- Modale Photo Mur & IA -->
+    <!-- Modale Photo Mur & IA (Pour placement automatique) -->
     <div id="modal-wall-photo" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
             <div class="flex justify-between items-center border-b pb-3">
-                <h3 class="font-serif-arch font-bold text-lg text-slate-800">Analyse Mur & Ouvrants (IA)</h3>
+                <h3 class="font-serif-arch font-bold text-lg text-slate-800">Photo & Placement Auto IA</h3>
                 <button onclick="closeWallPhotoModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="space-y-3 text-xs">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Longueur réelle du mur (en cm)</label>
-                    <input type="number" id="input-wall-len" value="450" class="w-full bg-slate-50 border rounded-lg p-2 font-tech">
+                    <label class="block font-medium text-slate-700 mb-1">Mur cible sélectionné</label>
+                    <p id="modal-target-wall-info" class="font-tech bg-slate-50 p-2 rounded border">Mur #0 (400 cm)</p>
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Photo du mur</label>
-                    <input type="file" accept="image/*" class="w-full text-xs text-slate-500">
+                    <label class="block font-medium text-slate-700 mb-1">Prendre / Importer la photo du mur</label>
+                    <input type="file" id="wall-photo-file" accept="image/*" capture="environment" class="w-full text-xs text-slate-500">
+                </div>
+                <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-amber-800">
+                    <p class="font-semibold mb-0.5">ℹ️ Fonctionnement :</p>
+                    <p class="text-[11px]">L'IA analyse la photo et positionnera automatiquement les portes et fenêtres détectées proportionnellement le long de ce mur.</p>
                 </div>
             </div>
             <div class="pt-2 flex space-x-2">
                 <button onclick="closeWallPhotoModal()" class="w-full bg-slate-100 py-2.5 rounded-xl font-medium text-xs">Annuler</button>
-                <button onclick="validateWallAi()" class="w-full bg-[#cf6644] text-white py-2.5 rounded-xl font-medium text-xs">Valider l'IA</button>
+                <button onclick="processWallPhotoAI()" class="w-full bg-[#cf6644] text-white py-2.5 rounded-xl font-medium text-xs">Lancer l'analyse & Placer</button>
             </div>
         </div>
     </div>
@@ -196,8 +186,8 @@
             {x1: 250, y1: 550, x2: 250, y2: 150, length: 400}
         ];
         let elements = [
-            { type: 'door', x: 450, y: 150, width: 80, rotation: 0 },
-            { type: 'window', x: 600, y: 150, width: 100, rotation: 0 },
+            { type: 'door', x: 450, y: 150, width: 80, rotation: 0, scaleX: 1, scaleY: 1 },
+            { type: 'window', x: 600, y: 150, width: 100, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'stairs', x: 550, y: 300, w: 100, h: 150, rotation: 0 },
             { type: 'text', x: 300, y: 250, text: 'Séjour', rotation: 0 }
         ];
@@ -307,9 +297,9 @@
             if (currentTool === 'wall' && lengthCm > 10) {
                 walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
             } else if (currentTool === 'door') {
-                elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0 });
+                elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0, scaleX: 1, scaleY: 1 });
             } else if (currentTool === 'window') {
-                elements.push({ type: 'window', x: startPoint.x, y: startPoint.y, width: 100, rotation: 0 });
+                elements.push({ type: 'window', x: startPoint.x, y: startPoint.y, width: 100, rotation: 0, scaleX: 1, scaleY: 1 });
             } else if (currentTool === 'stairs') {
                 elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: 100, h: 150, rotation: 0 });
             } else if (currentTool === 'text') {
@@ -331,7 +321,7 @@
 
         function rotateSelected() {
             if (!selectedItem || selectedItem.type !== 'element') {
-                alert("Veuillez sélectionner une porte, une fenêtre ou un élément avec l'outil 'Sélectionner' pour le pivoter.");
+                alert("Veuillez sélectionner un ouvrant ou un élément pour le pivoter.");
                 return;
             }
             saveState();
@@ -340,14 +330,30 @@
             renderCanvas();
         }
 
-        // Met à jour dynamiquement le panneau de dimensions selon la sélection
+        // Fonction Miroir (Gauche-Droite / Haut-Bas)
+        function mirrorSelected(axis) {
+            if (!selectedItem || selectedItem.type !== 'element') {
+                alert("Veuillez sélectionner un ouvrant (porte/fenêtre) pour appliquer un miroir.");
+                return;
+            }
+            saveState();
+            let el = elements[selectedItem.index];
+            if (axis === 'H') {
+                el.scaleX = (el.scaleX || 1) * -1;
+            } else if (axis === 'V') {
+                el.scaleY = (el.scaleY || 1) * -1;
+            }
+            renderCanvas();
+        }
+
+        // Mise à jour du panneau de propriétés dynamiques
         function updatePropertyPanel() {
             const label = document.getElementById('selected-type-label');
             const editor = document.getElementById('property-editor');
 
             if (!selectedItem) {
                 label.textContent = "Aucun";
-                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant pour modifier sa dimension.</p>`;
+                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant.</p>`;
                 return;
             }
 
@@ -356,8 +362,14 @@
                 label.textContent = `Mur #${selectedItem.index}`;
                 editor.innerHTML = `
                     <div>
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Longueur du mur (cm)</label>
-                        <input type="number" id="input-dim-val" value="${w.length}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs focus:ring-1 focus:ring-[#cf6644] focus:outline-none">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Longueur (cm)</label>
+                        <input type="number" id="input-dim-val" value="${w.length}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                    </div>
+                    <div class="pt-2">
+                        <button onclick="openWallPhotoModal()" class="w-full bg-[#cf6644] hover:bg-[#b85839] text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
+                            <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                            <span>📸 Photo & Placer Ouvrants Auto</span>
+                        </button>
                     </div>
                 `;
             } else if (selectedItem.type === 'element') {
@@ -366,14 +378,21 @@
                 let currentVal = el.width || el.w || 80;
                 editor.innerHTML = `
                     <div>
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Largeur / Taille (cm)</label>
-                        <input type="number" id="input-dim-val" value="${currentVal}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs focus:ring-1 focus:ring-[#cf6644] focus:outline-none">
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Largeur (cm)</label>
+                        <input type="number" id="input-dim-val" value="${currentVal}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                    </div>
+                    <div class="pt-2 flex space-x-1">
+                        <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 text-white py-1.5 rounded-lg font-medium flex items-center justify-center space-x-1">
+                            <i data-lucide="rotate-cw" class="w-3 h-3"></i><span>Pivoter</span>
+                        </button>
+                        <button onclick="mirrorSelected('H')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]" title="Miroir Gauche-Droite">Miroir ↔</button>
+                        <button onclick="mirrorSelected('V')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]" title="Miroir Haut-Bas">Miroir ↕</button>
                     </div>
                 `;
             }
+            lucide.createIcons();
         }
 
-        // Applique instantanément la nouvelle dimension saisie dans le menu
         function applyDimensionChange(newVal) {
             if (!selectedItem) return;
             let val = parseFloat(newVal);
@@ -385,7 +404,6 @@
                 if (currentLen === 0) return;
                 let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
                 w.length = val;
-                // Redimensionne le vecteur graphique proportionnellement à la nouvelle valeur
                 w.x2 = Math.round(w.x1 + val * Math.cos(angle));
                 w.y2 = Math.round(w.y1 + val * Math.sin(angle));
             } else if (selectedItem.type === 'element') {
@@ -399,13 +417,57 @@
             renderCanvas();
         }
 
+        // Déclenche l'appel backend pour placer automatiquement les ouvrants sur le mur sélectionné
+        function processWallPhotoAI() {
+            if (!selectedItem || selectedItem.type !== 'wall') return;
+            let w = walls[selectedItem.index];
+
+            const formData = new FormData();
+            formData.append('wallLength', w.length);
+
+            fetch('/api/detect-openings', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    saveState();
+                    let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1) * (180 / Math.PI);
+                    
+                    data.openings.forEach(op => {
+                        let ratio = op.position / w.length;
+                        let posX = w.x1 + ratio * (w.x2 - w.x1);
+                        let posY = w.y1 + ratio * (w.y2 - w.y1);
+
+                        elements.push({
+                            type: op.type === 'porte' ? 'door' : 'window',
+                            x: Math.round(posX),
+                            y: Math.round(posY),
+                            width: op.width || 90,
+                            rotation: Math.round(angle),
+                            scaleX: 1,
+                            scaleY: 1
+                        });
+                    });
+
+                    closeWallPhotoModal();
+                    renderCanvas();
+                    alert("Ouvrants placés automatiquement sur le mur avec succès !");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Erreur lors de l'analyse IA.");
+            });
+        }
+
         function renderCanvas() {
             const wallsGroup = document.getElementById('walls-layer');
             const elementsGroup = document.getElementById('elements-layer');
             wallsGroup.innerHTML = '';
             elementsGroup.innerHTML = '';
 
-            // Rendu des murs
             walls.forEach((w, index) => {
                 let isSelected = (selectedItem && selectedItem.type === 'wall' && selectedItem.index === index);
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -425,11 +487,13 @@
                 wallsGroup.appendChild(text);
             });
 
-            // Rendu des éléments (portes, fenêtres, escaliers, textes)
             elements.forEach((el, index) => {
                 let isSelected = (selectedItem && selectedItem.type === 'element' && selectedItem.index === index);
                 let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0})`);
+                
+                let sx = el.scaleX || 1;
+                let sy = el.scaleY || 1;
+                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}) scale(${sx}, ${sy})`);
 
                 if (el.type === 'door') {
                     const width = el.width || 80;
@@ -512,7 +576,7 @@
 
         function deleteSelected() {
             if (!selectedItem) {
-                alert("Veuillez sélectionner un élément à supprimer en choisissant l'outil 'Sélectionner / Déplacer'.");
+                alert("Veuillez sélectionner un élément à supprimer.");
                 return;
             }
             saveState();
@@ -550,9 +614,14 @@
 
         function openProjectsModal() { document.getElementById('modal-projects').classList.remove('hidden'); }
         function closeProjectsModal() { document.getElementById('modal-projects').classList.add('hidden'); }
-        function openWallPhotoModal() { document.getElementById('modal-wall-photo').classList.remove('hidden'); }
+        
+        function openWallPhotoModal() { 
+            if (!selectedItem || selectedItem.type !== 'wall') return;
+            let w = walls[selectedItem.index];
+            document.getElementById('modal-target-wall-info').textContent = `Mur #${selectedItem.index} (${w.length} cm)`;
+            document.getElementById('modal-wall-photo').classList.remove('hidden'); 
+        }
         function closeWallPhotoModal() { document.getElementById('modal-wall-photo').classList.add('hidden'); }
-        function validateWallAi() { closeWallPhotoModal(); alert('Ouvrants détectés par l’IA et positionnés avec succès !'); }
 
         function exportPDF() {
             fetch('/api/export-pdf', { method: 'POST' })
