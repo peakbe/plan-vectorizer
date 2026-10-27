@@ -110,17 +110,18 @@
             </button>
         </div>
 
-        <!-- Panneau info pièce -->
-        <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-1.5 w-56">
+        <!-- Panneau de Propriétés & Mesures (Interactif) -->
+        <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-2 w-64">
             <div class="flex justify-between font-bold text-slate-700 border-b pb-1">
-                <span>Mode Actif</span>
-                <span id="active-mode-label" class="text-[#cf6644]">Mur</span>
+                <span>Propriétés & Mesures</span>
+                <span id="selected-type-label" class="text-[#cf6644]">Aucun</span>
             </div>
-            <div class="flex justify-between text-slate-600">
-                <span>Sélection :</span>
-                <span id="selected-info" class="font-tech text-slate-900">Aucun</span>
+            
+            <div id="property-editor" class="space-y-2 text-slate-600">
+                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant pour modifier sa dimension.</p>
             </div>
-            <div class="pt-1 flex space-x-1">
+
+            <div class="pt-2 border-t flex space-x-1">
                 <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
                     <i data-lucide="rotate-cw" class="w-3 h-3"></i>
                     <span>Pivoter 90°</span>
@@ -208,7 +209,6 @@
 
         function setTool(tool) {
             currentTool = tool;
-            document.getElementById('active-mode-label').textContent = tool === 'select' ? 'Sélection' : tool.charAt(0).toUpperCase() + tool.slice(1);
             document.querySelectorAll('.tool-btn').forEach(btn => {
                 btn.className = "tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200";
             });
@@ -241,7 +241,7 @@
                     isDragging = true;
                     dragOffset.x = x - elements[foundElIndex].x;
                     dragOffset.y = y - elements[foundElIndex].y;
-                    document.getElementById('selected-info').textContent = `${elements[foundElIndex].type} #${foundElIndex}`;
+                    updatePropertyPanel();
                     renderCanvas();
                     return;
                 }
@@ -253,13 +253,13 @@
 
                 if (foundWallIndex !== -1) {
                     selectedItem = { type: 'wall', index: foundWallIndex };
-                    document.getElementById('selected-info').textContent = `Mur #${foundWallIndex}`;
+                    updatePropertyPanel();
                     renderCanvas();
                     return;
                 }
 
                 selectedItem = null;
-                document.getElementById('selected-info').textContent = 'Aucun';
+                updatePropertyPanel();
                 renderCanvas();
             } else {
                 saveState();
@@ -329,15 +329,73 @@
             return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
         }
 
-        // Fonction pour faire pivoter l'élément sélectionné de 90° à chaque clic
         function rotateSelected() {
             if (!selectedItem || selectedItem.type !== 'element') {
-                alert("Veuillez sélectionner une porte ou une fenêtre avec l'outil 'Sélectionner' pour la faire pivoter.");
+                alert("Veuillez sélectionner une porte, une fenêtre ou un élément avec l'outil 'Sélectionner' pour le pivoter.");
                 return;
             }
             saveState();
             let el = elements[selectedItem.index];
             el.rotation = (el.rotation + 90) % 360;
+            renderCanvas();
+        }
+
+        // Met à jour dynamiquement le panneau de dimensions selon la sélection
+        function updatePropertyPanel() {
+            const label = document.getElementById('selected-type-label');
+            const editor = document.getElementById('property-editor');
+
+            if (!selectedItem) {
+                label.textContent = "Aucun";
+                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant pour modifier sa dimension.</p>`;
+                return;
+            }
+
+            if (selectedItem.type === 'wall') {
+                let w = walls[selectedItem.index];
+                label.textContent = `Mur #${selectedItem.index}`;
+                editor.innerHTML = `
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Longueur du mur (cm)</label>
+                        <input type="number" id="input-dim-val" value="${w.length}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs focus:ring-1 focus:ring-[#cf6644] focus:outline-none">
+                    </div>
+                `;
+            } else if (selectedItem.type === 'element') {
+                let el = elements[selectedItem.index];
+                label.textContent = `${el.type.charAt(0).toUpperCase() + el.type.slice(1)}`;
+                let currentVal = el.width || el.w || 80;
+                editor.innerHTML = `
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-700 mb-1">Largeur / Taille (cm)</label>
+                        <input type="number" id="input-dim-val" value="${currentVal}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs focus:ring-1 focus:ring-[#cf6644] focus:outline-none">
+                    </div>
+                `;
+            }
+        }
+
+        // Applique instantanément la nouvelle dimension saisie dans le menu
+        function applyDimensionChange(newVal) {
+            if (!selectedItem) return;
+            let val = parseFloat(newVal);
+            if (isNaN(val) || val <= 0) return;
+
+            if (selectedItem.type === 'wall') {
+                let w = walls[selectedItem.index];
+                let currentLen = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
+                if (currentLen === 0) return;
+                let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+                w.length = val;
+                // Redimensionne le vecteur graphique proportionnellement à la nouvelle valeur
+                w.x2 = Math.round(w.x1 + val * Math.cos(angle));
+                w.y2 = Math.round(w.y1 + val * Math.sin(angle));
+            } else if (selectedItem.type === 'element') {
+                let el = elements[selectedItem.index];
+                if (el.type === 'door' || el.type === 'window') {
+                    el.width = val;
+                } else if (el.type === 'stairs') {
+                    el.w = val;
+                }
+            }
             renderCanvas();
         }
 
@@ -374,10 +432,8 @@
                 g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0})`);
 
                 if (el.type === 'door') {
-                    // Symbole standard de porte (Bleu) : Arc d'ouverture + Vantail à 90°
                     const width = el.width || 80;
                     
-                    // Arc d'ouverture (quart de cercle)
                     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     arc.setAttribute('d', `M 0 0 A ${width} ${width} 0 0 1 ${width} -${width}`);
                     arc.setAttribute('fill', 'none');
@@ -386,7 +442,6 @@
                     arc.setAttribute('stroke-dasharray', '3,3');
                     g.appendChild(arc);
 
-                    // Battant/Panneau de porte ouvert à 90°
                     const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     leaf.setAttribute('x1', '0'); leaf.setAttribute('y1', '0');
                     leaf.setAttribute('x2', '0'); leaf.setAttribute('y2', `-${width}`);
@@ -394,7 +449,6 @@
                     leaf.setAttribute('stroke-width', '3');
                     g.appendChild(leaf);
 
-                    // Cadre de base
                     const base = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     base.setAttribute('x1', '0'); base.setAttribute('y1', '0');
                     base.setAttribute('x2', `${width}`); base.setAttribute('y2', '0');
@@ -403,7 +457,6 @@
                     g.appendChild(base);
 
                 } else if (el.type === 'window') {
-                    // Symbole de fenêtre (Vert) : Double vitrage encadré
                     const width = el.width || 100;
                     const winRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                     winRect.setAttribute('x', '0'); winRect.setAttribute('y', '-4');
@@ -413,7 +466,6 @@
                     winRect.setAttribute('stroke-width', '2');
                     g.appendChild(winRect);
 
-                    // Ligne centrale de vitre
                     const glassLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     glassLine.setAttribute('x1', '0'); glassLine.setAttribute('y1', '0');
                     glassLine.setAttribute('x2', `${width}`); glassLine.setAttribute('y2', '0');
@@ -453,6 +505,7 @@
                 walls = prevState.walls;
                 elements = prevState.elements;
                 selectedItem = null;
+                updatePropertyPanel();
                 renderCanvas();
             }
         }
@@ -469,7 +522,7 @@
                 elements.splice(selectedItem.index, 1);
             }
             selectedItem = null;
-            document.getElementById('selected-info').textContent = 'Aucun';
+            updatePropertyPanel();
             renderCanvas();
         }
 
