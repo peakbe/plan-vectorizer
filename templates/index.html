@@ -488,39 +488,37 @@
                 if (el.type === 'door') {
                     const width = el.width || 80;
                     
-                    // Arc d'ouverture du quart de cercle en pointillés
+                    // Arc d'ouverture en pointillés (quart de cercle reliant le haut du vantail à la butée droite)
                     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    arc.setAttribute('d', `M 0 0 A ${width} ${width} 0 0 0 -${width} -${width}`);
+                    arc.setAttribute('d', `M 0 -${width} A ${width} ${width} 0 0 1 ${width} 0`);
                     arc.setAttribute('fill', 'none');
                     arc.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
                     arc.setAttribute('stroke-width', '1.5');
                     arc.setAttribute('stroke-dasharray', '3,3');
                     g.appendChild(arc);
 
-                    // Battant/Panneau de porte ouvert (trait fin de liaison)
-                    const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    leaf.setAttribute('x1', '0'); leaf.setAttribute('y1', '0');
-                    leaf.setAttribute('x2', `-${width}`); leaf.setAttribute('y2', `-${width}`);
-                    leaf.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
-                    leaf.setAttribute('stroke-width', '1.5');
-                    leaf.setAttribute('stroke-dasharray', '2,2');
+                    // Ligne horizontale au sol à droite (butée / fin de course)
+                    const stopLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    stopLine.setAttribute('x1', `${width - 8}`); stopLine.setAttribute('y1', '0');
+                    stopLine.setAttribute('x2', `${width + 8}`); stopLine.setAttribute('y2', '0');
+                    stopLine.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
+                    stopLine.setAttribute('stroke-width', '3');
+                    g.appendChild(stopLine);
+
+                    // Vantail vertical ÉPAIS à droite (représentant la porte ouverte)
+                    const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    leaf.setAttribute('x', '-3'); leaf.setAttribute('y', `-${width}`);
+                    leaf.setAttribute('width', '6'); leaf.setAttribute('height', `${width}`);
+                    leaf.setAttribute('fill', isSelected ? '#e056fd' : '#2563eb');
                     g.appendChild(leaf);
 
-                    // Ligne horizontale basse (segment de base) fine
-                    const baseH = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    baseH.setAttribute('x1', '0'); baseH.setAttribute('y1', '0');
-                    baseH.setAttribute('x2', `-${width}`); baseH.setAttribute('y2', '0');
-                    baseH.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
-                    baseH.setAttribute('stroke-width', '2');
-                    g.appendChild(baseH);
-
-                    // Ligne verticale à droite ÉPAISSE représentant la porte fermée
-                    const baseV = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    baseV.setAttribute('x1', '0'); baseV.setAttribute('y1', '0');
-                    baseV.setAttribute('x2', '0'); baseV.setAttribute('y2', `-${width}`);
-                    baseV.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
-                    baseV.setAttribute('stroke-width', '5');
-                    g.appendChild(baseV);
+                    // Petit retour de base en bas à gauche
+                    const baseCorner = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    baseCorner.setAttribute('x1', '-10'); baseCorner.setAttribute('y1', '0');
+                    baseCorner.setAttribute('x2', '3'); baseCorner.setAttribute('y2', '0');
+                    baseCorner.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
+                    baseCorner.setAttribute('stroke-width', '3');
+                    g.appendChild(baseCorner);
 
                 } else if (el.type === 'window') {
                     const width = el.width || 100;
