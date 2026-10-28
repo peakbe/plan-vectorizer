@@ -48,10 +48,13 @@
     <nav class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between overflow-x-auto space-x-2 text-xs">
         <div class="flex items-center space-x-1.5 shrink-0">
             <button onclick="setTool('select')" id="btn-tool-select" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
-                <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i><span>Sélectionner / Déplacer</span>
+                <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i><span>Sélectionner</span>
             </button>
             <button onclick="setTool('wall')" id="btn-tool-wall" class="tool-btn bg-slate-900 text-white px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1">
                 <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i><span>Mur</span>
+            </button>
+            <button onclick="setTool('room')" id="btn-tool-room" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
+                <i data-lucide="square" class="w-3.5 h-3.5 text-[#cf6644]"></i><span>Pièce (Carré/Rect.)</span>
             </button>
             <button onclick="setTool('door')" id="btn-tool-door" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="door-open" class="w-3.5 h-3.5 text-blue-600"></i><span>Porte</span>
@@ -185,7 +188,7 @@
             { type: 'door', x: 450, y: 150, width: 80, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'window', x: 600, y: 150, width: 100, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'stairs', x: 550, y: 300, w: 100, h: 150, rotation: 0 },
-            { type: 'text', x: 300, y: 250, text: 'Séjour', rotation: 0 }
+            { type: 'text', x: 300, y: 250, text: 'Séjour (20.0 m²)', rotation: 0 }
         ];
         let historyStack = [];
 
@@ -279,19 +282,44 @@
             let endX = Math.round(svgP.x);
             let endY = Math.round(svgP.y);
 
-            if (document.getElementById('chk-snap').checked) {
-                if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) {
-                    endY = startPoint.y;
-                } else {
-                    endX = startPoint.x;
-                }
-            }
-
-            const lengthCm = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
+            const widthCm = Math.abs(endX - startPoint.x);
+            const heightCm = Math.abs(endY - startPoint.y);
 
             saveState();
-            if (currentTool === 'wall' && lengthCm > 10) {
-                walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
+
+            if (currentTool === 'room' && widthCm > 20 && heightCm > 20) {
+                // Tracé automatique d'une pièce rectangulaire (4 murs + texte de surface)
+                let rx = Math.min(startPoint.x, endX);
+                let ry = Math.min(startPoint.y, endY);
+                let rw = widthCm;
+                let rh = heightCm;
+
+                walls.push({ x1: rx, y1: ry, x2: rx + rw, y2: ry, length: rw });
+                walls.push({ x1: rx + rw, y1: ry, x2: rx + rw, y2: ry + rh, length: rh });
+                walls.push({ x1: rx + rw, y1: ry + rh, x2: rx, y2: ry + rh, length: rw });
+                walls.push({ x1: rx, y1: ry + rh, x2: rx, y2: ry, length: rh });
+
+                let roomName = prompt("Nom de la pièce :", "Chambre");
+                if (!roomName) roomName = "Pièce";
+                let surfaceM2 = ((rw / 100) * (rh / 100)).toFixed(1);
+
+                elements.push({
+                    type: 'text',
+                    x: rx + rw / 2,
+                    y: ry + rh / 2,
+                    text: `${roomName} (${surfaceM2} m²)`,
+                    rotation: 0
+                });
+
+            } else if (currentTool === 'wall') {
+                if (document.getElementById('chk-snap').checked) {
+                    if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) endY = startPoint.y;
+                    else endX = startPoint.x;
+                }
+                let lengthCm = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
+                if (lengthCm > 10) {
+                    walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
+                }
             } else if (currentTool === 'door') {
                 elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0, scaleX: 1, scaleY: 1 });
             } else if (currentTool === 'window') {
@@ -299,7 +327,7 @@
             } else if (currentTool === 'stairs') {
                 elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: 100, h: 150, rotation: 0 });
             } else if (currentTool === 'text') {
-                let txt = prompt("Texte de la pièce ou légende :", "Chambre");
+                let txt = prompt("Texte de légende :", "Légende");
                 if (txt) elements.push({ type: 'text', x: startPoint.x, y: startPoint.y, text: txt, rotation: 0 });
             }
 
@@ -316,10 +344,7 @@
         }
 
         function rotateSelected() {
-            if (!selectedItem || selectedItem.type !== 'element') {
-                alert("Veuillez sélectionner un ouvrant ou un élément pour le pivoter.");
-                return;
-            }
+            if (!selectedItem || selectedItem.type !== 'element') return;
             saveState();
             let el = elements[selectedItem.index];
             el.rotation = (el.rotation + 90) % 360;
@@ -327,10 +352,7 @@
         }
 
         function mirrorSelected(axis) {
-            if (!selectedItem || selectedItem.type !== 'element') {
-                alert("Veuillez sélectionner un ouvrant (porte/fenêtre) pour appliquer un miroir.");
-                return;
-            }
+            if (!selectedItem || selectedItem.type !== 'element') return;
             saveState();
             let el = elements[selectedItem.index];
             if (axis === 'H') el.scaleX = (el.scaleX || 1) * -1;
@@ -376,8 +398,8 @@
                         <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 text-white py-1.5 rounded-lg font-medium flex items-center justify-center space-x-1">
                             <i data-lucide="rotate-cw" class="w-3 h-3"></i><span>Pivoter</span>
                         </button>
-                        <button onclick="mirrorSelected('H')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]" title="Miroir Gauche-Droite">Miroir ↔</button>
-                        <button onclick="mirrorSelected('V')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]" title="Miroir Haut-Bas">Miroir ↕</button>
+                        <button onclick="mirrorSelected('H')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]">Miroir ↔</button>
+                        <button onclick="mirrorSelected('V')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]">Miroir ↕</button>
                     </div>
                 `;
             }
@@ -399,11 +421,8 @@
                 w.y2 = Math.round(w.y1 + val * Math.sin(angle));
             } else if (selectedItem.type === 'element') {
                 let el = elements[selectedItem.index];
-                if (el.type === 'door' || el.type === 'window') {
-                    el.width = val;
-                } else if (el.type === 'stairs') {
-                    el.w = val;
-                }
+                if (el.type === 'door' || el.type === 'window') el.width = val;
+                else if (el.type === 'stairs') el.w = val;
             }
             renderCanvas();
         }
@@ -415,40 +434,27 @@
             const formData = new FormData();
             formData.append('wallLength', w.length);
 
-            fetch('/api/detect-openings', {
-                method: 'POST',
-                body: formData
-            })
+            fetch('/api/detect-openings', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
                     saveState();
                     let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1) * (180 / Math.PI);
-                    
                     data.openings.forEach(op => {
                         let ratio = op.position / w.length;
-                        let posX = w.x1 + ratio * (w.x2 - w.x1);
-                        let posY = w.y1 + ratio * (w.y2 - w.y1);
-
                         elements.push({
                             type: op.type === 'porte' ? 'door' : 'window',
-                            x: Math.round(posX),
-                            y: Math.round(posY),
+                            x: Math.round(w.x1 + ratio * (w.x2 - w.x1)),
+                            y: Math.round(w.y1 + ratio * (w.y2 - w.y1)),
                             width: op.width || 90,
                             rotation: Math.round(angle),
-                            scaleX: 1,
-                            scaleY: 1
+                            scaleX: 1, scaleY: 1
                         });
                     });
-
                     closeWallPhotoModal();
                     renderCanvas();
-                    alert("Ouvrants placés automatiquement sur le mur avec succès !");
+                    alert("Ouvrants placés automatiquement avec succès !");
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                alert("Erreur lors de l'analyse IA.");
             });
         }
 
@@ -480,15 +486,10 @@
             elements.forEach((el, index) => {
                 let isSelected = (selectedItem && selectedItem.type === 'element' && selectedItem.index === index);
                 let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                
-                let sx = el.scaleX || 1;
-                let sy = el.scaleY || 1;
-                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}) scale(${sx}, ${sy})`);
+                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}) scale(${el.scaleX || 1}, ${el.scaleY || 1})`);
 
                 if (el.type === 'door') {
                     const width = el.width || 80;
-                    
-                    // Arc d'ouverture en pointillés (quart de cercle reliant le haut du vantail à la butée droite)
                     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     arc.setAttribute('d', `M 0 -${width} A ${width} ${width} 0 0 1 ${width} 0`);
                     arc.setAttribute('fill', 'none');
@@ -497,7 +498,6 @@
                     arc.setAttribute('stroke-dasharray', '3,3');
                     g.appendChild(arc);
 
-                    // Ligne horizontale au sol à droite (butée / fin de course)
                     const stopLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     stopLine.setAttribute('x1', `${width - 8}`); stopLine.setAttribute('y1', '0');
                     stopLine.setAttribute('x2', `${width + 8}`); stopLine.setAttribute('y2', '0');
@@ -505,14 +505,12 @@
                     stopLine.setAttribute('stroke-width', '3');
                     g.appendChild(stopLine);
 
-                    // Vantail vertical ÉPAIS à droite (représentant la porte ouverte)
                     const leaf = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                     leaf.setAttribute('x', '-3'); leaf.setAttribute('y', `-${width}`);
                     leaf.setAttribute('width', '6'); leaf.setAttribute('height', `${width}`);
                     leaf.setAttribute('fill', isSelected ? '#e056fd' : '#2563eb');
                     g.appendChild(leaf);
 
-                    // Petit retour de base en bas à gauche
                     const baseCorner = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     baseCorner.setAttribute('x1', '-10'); baseCorner.setAttribute('y1', '0');
                     baseCorner.setAttribute('x2', '3'); baseCorner.setAttribute('y2', '0');
@@ -533,13 +531,13 @@
                     const glassLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     glassLine.setAttribute('x1', '0'); glassLine.setAttribute('y1', '0');
                     glassLine.setAttribute('x2', `${width}`); glassLine.setAttribute('y2', '0');
-                    glassLine.setAttribute('stroke', '#16a34a');
-                    glassLine.setAttribute('stroke-width', '1');
+                    glassLine.setAttribute('stroke', '#16a34a'); glassLine.setAttribute('stroke-width', '1');
                     g.appendChild(glassLine);
 
                 } else if (el.type === 'text') {
                     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     t.setAttribute('x', '0'); t.setAttribute('y', '0');
+                    t.setAttribute('text-anchor', 'middle');
                     t.setAttribute('class', `font-serif-arch text-sm font-bold ${isSelected ? 'fill-[#cf6644]' : 'fill-slate-800'}`);
                     t.textContent = el.text;
                     g.appendChild(t);
@@ -565,7 +563,7 @@
 
         function undoLast() {
             if (historyStack.length > 0) {
-                const prevState = JSON.parse(historyStack.pop());
+                let prevState = JSON.parse(historyStack.pop());
                 walls = prevState.walls;
                 elements = prevState.elements;
                 selectedItem = null;
@@ -575,16 +573,10 @@
         }
 
         function deleteSelected() {
-            if (!selectedItem) {
-                alert("Veuillez sélectionner un élément à supprimer.");
-                return;
-            }
+            if (!selectedItem) { alert("Sélectionnez un élément à supprimer."); return; }
             saveState();
-            if (selectedItem.type === 'wall') {
-                walls.splice(selectedItem.index, 1);
-            } else if (selectedItem.type === 'element') {
-                elements.splice(selectedItem.index, 1);
-            }
+            if (selectedItem.type === 'wall') walls.splice(selectedItem.index, 1);
+            else if (selectedItem.type === 'element') elements.splice(selectedItem.index, 1);
             selectedItem = null;
             updatePropertyPanel();
             renderCanvas();
@@ -599,41 +591,36 @@
                     img.src = e.target.result;
                     img.classList.remove('hidden');
                     document.getElementById('btn-remove-bg').classList.remove('hidden');
-                }
+                };
                 reader.readAsDataURL(file);
             }
         }
 
         function removeBgImage() {
-            const img = document.getElementById('imported-bg');
-            img.src = '';
-            img.classList.add('hidden');
+            document.getElementById('imported-bg').src = '';
+            document.getElementById('imported-bg').classList.add('hidden');
             document.getElementById('btn-remove-bg').classList.add('hidden');
             document.getElementById('bg-file-input').value = '';
         }
 
         function openProjectsModal() { document.getElementById('modal-projects').classList.remove('hidden'); }
         function closeProjectsModal() { document.getElementById('modal-projects').classList.add('hidden'); }
-        
-        function openWallPhotoModal() { 
+        function openWallPhotoModal() {
             if (!selectedItem || selectedItem.type !== 'wall') return;
             let w = walls[selectedItem.index];
             document.getElementById('modal-target-wall-info').textContent = `Mur #${selectedItem.index} (${w.length} cm)`;
-            document.getElementById('modal-wall-photo').classList.remove('hidden'); 
+            document.getElementById('modal-wall-photo').classList.remove('hidden');
         }
         function closeWallPhotoModal() { document.getElementById('modal-wall-photo').classList.add('hidden'); }
 
         function exportPDF() {
             fetch('/api/export-pdf', { method: 'POST' })
-            .then(response => response.blob())
+            .then(res => res.blob())
             .then(blob => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = 'plan_architecte.pdf';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
+                a.href = url; a.download = 'plan_architecte.pdf';
+                document.body.appendChild(a); a.click(); a.remove();
             });
         }
 
