@@ -118,7 +118,7 @@
             </div>
             
             <div id="property-editor" class="space-y-2 text-slate-600">
-                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant.</p>
+                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou une pièce.</p>
             </div>
         </div>
 
@@ -172,7 +172,7 @@
         lucide.createIcons();
 
         let currentTool = 'wall';
-        let selectedItem = null;
+        let selectedItem = null; // { type: 'wall'|'element'|'endpoint', index: number, handle: 'p1'|'p2' }
         let isDrawing = false;
         let isDragging = false;
         let startPoint = null;
@@ -188,7 +188,7 @@
             { type: 'door', x: 450, y: 150, width: 80, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'window', x: 600, y: 150, width: 100, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'stairs', x: 550, y: 300, w: 100, h: 150, rotation: 0 },
-            { type: 'text', x: 300, y: 250, text: 'Séjour (20.0 m²)', rotation: 0 }
+            { type: 'text', x: 500, y: 350, text: 'Séjour (20.0 m²)', rotation: 0 }
         ];
         let historyStack = [];
 
@@ -219,10 +219,26 @@
             const y = Math.round(svgP.y);
 
             if (currentTool === 'select') {
+                // 1. Vérifier si on attrape une poignée (endpoint) d'un mur sélectionné
+                if (selectedItem && selectedItem.type === 'wall') {
+                    let w = walls[selectedItem.index];
+                    if (Math.hypot(x - w.x1, y - w.y1) < 12) {
+                        selectedItem = { type: 'endpoint', index: selectedItem.index, handle: 'p1' };
+                        isDragging = true;
+                        return;
+                    }
+                    if (Math.hypot(x - w.x2, y - w.y2) < 12) {
+                        selectedItem = { type: 'endpoint', index: selectedItem.index, handle: 'p2' };
+                        isDragging = true;
+                        return;
+                    }
+                }
+
+                // 2. Vérifier si on clique sur un texte de pièce pour le déplacer
                 let foundElIndex = elements.findIndex(el => {
-                    let w = el.w || el.width || 50;
+                    let w = el.w || el.width || 80;
                     let h = el.h || 50;
-                    return x >= el.x - 15 && x <= el.x + w + 15 && y >= el.y - 15 && y <= el.y + h + 15;
+                    return x >= el.x - 30 && x <= el.x + w + 30 && y >= el.y - 20 && y <= el.y + h + 20;
                 });
 
                 if (foundElIndex !== -1) {
@@ -235,6 +251,7 @@
                     return;
                 }
 
+                // 3. Sinon vérifier si on clique sur un mur
                 let foundWallIndex = walls.findIndex(w => {
                     let dist = distToSegment({x, y}, {x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
                     return dist < 12;
@@ -268,6 +285,16 @@
                 el.x = x - dragOffset.x;
                 el.y = y - dragOffset.y;
                 renderCanvas();
+            } else if (selectedItem.type === 'endpoint') {
+                let w = walls[selectedItem.index];
+                if (selectedItem.handle === 'p1') {
+                    w.x1 = x; w.y1 = y;
+                } else {
+                    w.x2 = x; w.y2 = y;
+                }
+                w.length = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1));
+                updatePropertyPanel();
+                renderCanvas();
             }
         });
 
@@ -288,7 +315,6 @@
             saveState();
 
             if (currentTool === 'room' && widthCm > 20 && heightCm > 20) {
-                // Tracé automatique d'une pièce rectangulaire (4 murs + texte de surface)
                 let rx = Math.min(startPoint.x, endX);
                 let ry = Math.min(startPoint.y, endY);
                 let rw = widthCm;
@@ -366,11 +392,11 @@
 
             if (!selectedItem) {
                 label.textContent = "Aucun";
-                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un ouvrant.</p>`;
+                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou une pièce.</p>`;
                 return;
             }
 
-            if (selectedItem.type === 'wall') {
+            if (selectedItem.type === 'wall' || selectedItem.type === 'endpoint') {
                 let w = walls[selectedItem.index];
                 label.textContent = `Mur #${selectedItem.index}`;
                 editor.innerHTML = `
@@ -411,10 +437,8 @@
             let val = parseFloat(newVal);
             if (isNaN(val) || val <= 0) return;
 
-            if (selectedItem.type === 'wall') {
+            if (selectedItem.type === 'wall' || selectedItem.type === 'endpoint') {
                 let w = walls[selectedItem.index];
-                let currentLen = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
-                if (currentLen === 0) return;
                 let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
                 w.length = val;
                 w.x2 = Math.round(w.x1 + val * Math.cos(angle));
@@ -428,7 +452,7 @@
         }
 
         function processWallPhotoAI() {
-            if (!selectedItem || selectedItem.type !== 'wall') return;
+            if (!selectedItem || (selectedItem.type !== 'wall' && selectedItem.type !== 'endpoint')) return;
             let w = walls[selectedItem.index];
 
             const formData = new FormData();
@@ -465,7 +489,7 @@
             elementsGroup.innerHTML = '';
 
             walls.forEach((w, index) => {
-                let isSelected = (selectedItem && selectedItem.type === 'wall' && selectedItem.index === index);
+                let isSelected = (selectedItem && (selectedItem.type === 'wall' || selectedItem.type === 'endpoint') && selectedItem.index === index);
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', w.x1); line.setAttribute('y1', w.y1);
                 line.setAttribute('x2', w.x2); line.setAttribute('y2', w.y2);
@@ -481,6 +505,19 @@
                 text.setAttribute('class', 'font-tech text-[10px] fill-[#cf6644] font-semibold');
                 text.textContent = (w.length || 400) + ' cm';
                 wallsGroup.appendChild(text);
+
+                // Poignées d'étirement aux extrémités si le mur est sélectionné
+                if (isSelected) {
+                    [ {cx: w.x1, cy: w.y1}, {cx: w.x2, cy: w.y2} ].forEach(pt => {
+                        const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        handle.setAttribute('cx', pt.cx); handle.setAttribute('cy', pt.cy);
+                        handle.setAttribute('r', '6');
+                        handle.setAttribute('fill', '#ffffff');
+                        handle.setAttribute('stroke', '#cf6644');
+                        handle.setAttribute('stroke-width', '3');
+                        wallsGroup.appendChild(handle);
+                    });
+                }
             });
 
             elements.forEach((el, index) => {
@@ -575,7 +612,7 @@
         function deleteSelected() {
             if (!selectedItem) { alert("Sélectionnez un élément à supprimer."); return; }
             saveState();
-            if (selectedItem.type === 'wall') walls.splice(selectedItem.index, 1);
+            if (selectedItem.type === 'wall' || selectedItem.type === 'endpoint') walls.splice(selectedItem.index, 1);
             else if (selectedItem.type === 'element') elements.splice(selectedItem.index, 1);
             selectedItem = null;
             updatePropertyPanel();
@@ -606,7 +643,7 @@
         function openProjectsModal() { document.getElementById('modal-projects').classList.remove('hidden'); }
         function closeProjectsModal() { document.getElementById('modal-projects').classList.add('hidden'); }
         function openWallPhotoModal() {
-            if (!selectedItem || selectedItem.type !== 'wall') return;
+            if (!selectedItem || (selectedItem.type !== 'wall' && selectedItem.type !== 'endpoint')) return;
             let w = walls[selectedItem.index];
             document.getElementById('modal-target-wall-info').textContent = `Mur #${selectedItem.index} (${w.length} cm)`;
             document.getElementById('modal-wall-photo').classList.remove('hidden');
