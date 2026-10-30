@@ -54,13 +54,19 @@
                 <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i><span>Mur</span>
             </button>
             <button onclick="setTool('room')" id="btn-tool-room" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
-                <i data-lucide="square" class="w-3.5 h-3.5 text-[#cf6644]"></i><span>Pièce (Carré/Rect.)</span>
+                <i data-lucide="square" class="w-3.5 h-3.5 text-[#cf6644]"></i><span>Pièce</span>
             </button>
             <button onclick="setTool('door')" id="btn-tool-door" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="door-open" class="w-3.5 h-3.5 text-blue-600"></i><span>Porte</span>
             </button>
             <button onclick="setTool('window')" id="btn-tool-window" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-600"></i><span>Fenêtre</span>
+            </button>
+            <button onclick="setTool('circle')" id="btn-tool-circle" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
+                <i data-lucide="circle" class="w-3.5 h-3.5 text-red-600"></i><span>Cercle (Rouge)</span>
+            </button>
+            <button onclick="setTool('arrow')" id="btn-tool-arrow" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
+                <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-red-600"></i><span>Flèche (Rouge)</span>
             </button>
             <button onclick="setTool('stairs')" id="btn-tool-stairs" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="align-justify" class="w-3.5 h-3.5"></i><span>Escalier</span>
@@ -93,8 +99,14 @@
 
         <!-- SVG Interactif -->
         <svg id="plan-canvas" class="w-full h-full cursor-crosshair z-10" viewBox="0 0 1000 700">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+                </marker>
+            </defs>
             <g id="walls-layer"></g>
             <g id="elements-layer"></g>
+            <g id="preview-layer"></g>
         </svg>
 
         <!-- Boutons d'arrière-plan -->
@@ -172,10 +184,11 @@
         lucide.createIcons();
 
         let currentTool = 'wall';
-        let selectedItem = null; // { type: 'wall'|'element'|'endpoint', index: number, handle: 'p1'|'p2' }
+        let selectedItem = null;
         let isDrawing = false;
         let isDragging = false;
         let startPoint = null;
+        let currentMousePoint = null;
         let dragOffset = { x: 0, y: 0 };
         
         let walls = [
@@ -219,7 +232,6 @@
             const y = Math.round(svgP.y);
 
             if (currentTool === 'select') {
-                // 1. Vérifier si on attrape une poignée (endpoint) d'un mur sélectionné
                 if (selectedItem && selectedItem.type === 'wall') {
                     let w = walls[selectedItem.index];
                     if (Math.hypot(x - w.x1, y - w.y1) < 12) {
@@ -234,9 +246,8 @@
                     }
                 }
 
-                // 2. Vérifier si on clique sur un texte de pièce pour le déplacer
                 let foundElIndex = elements.findIndex(el => {
-                    let w = el.w || el.width || 80;
+                    let w = el.w || el.width || 50;
                     let h = el.h || 50;
                     return x >= el.x - 30 && x <= el.x + w + 30 && y >= el.y - 20 && y <= el.y + h + 20;
                 });
@@ -251,7 +262,6 @@
                     return;
                 }
 
-                // 3. Sinon vérifier si on clique sur un mur
                 let foundWallIndex = walls.findIndex(w => {
                     let dist = distToSegment({x, y}, {x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
                     return dist < 12;
@@ -271,30 +281,36 @@
                 saveState();
                 isDrawing = true;
                 startPoint = { x, y };
+                currentMousePoint = { x, y };
             }
         });
 
         svgCanvas.addEventListener('mousemove', (e) => {
-            if (!isDragging || !selectedItem || currentTool !== 'select') return;
             const svgP = getSvgPoint(e);
-            const x = Math.round(svgP.x);
-            const y = Math.round(svgP.y);
+            currentMousePoint = { x: Math.round(svgP.x), y: Math.round(svgP.y) };
 
-            if (selectedItem.type === 'element') {
-                let el = elements[selectedItem.index];
-                el.x = x - dragOffset.x;
-                el.y = y - dragOffset.y;
-                renderCanvas();
-            } else if (selectedItem.type === 'endpoint') {
-                let w = walls[selectedItem.index];
-                if (selectedItem.handle === 'p1') {
-                    w.x1 = x; w.y1 = y;
-                } else {
-                    w.x2 = x; w.y2 = y;
+            if (isDragging && selectedItem && currentTool === 'select') {
+                if (selectedItem.type === 'element') {
+                    let el = elements[selectedItem.index];
+                    el.x = currentMousePoint.x - dragOffset.x;
+                    el.y = currentMousePoint.y - dragOffset.y;
+                    renderCanvas();
+                } else if (selectedItem.type === 'endpoint') {
+                    let w = walls[selectedItem.index];
+                    if (selectedItem.handle === 'p1') {
+                        w.x1 = currentMousePoint.x; w.y1 = currentMousePoint.y;
+                    } else {
+                        w.x2 = currentMousePoint.x; w.y2 = currentMousePoint.y;
+                    }
+                    w.length = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1));
+                    updatePropertyPanel();
+                    renderCanvas();
                 }
-                w.length = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1));
-                updatePropertyPanel();
-                renderCanvas();
+                return;
+            }
+
+            if (isDrawing) {
+                renderPreview();
             }
         });
 
@@ -346,6 +362,13 @@
                 if (lengthCm > 10) {
                     walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
                 }
+            } else if (currentTool === 'circle') {
+                let radius = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
+                if (radius > 5) {
+                    elements.push({ type: 'circle', x: startPoint.x, y: startPoint.y, r: radius });
+                }
+            } else if (currentTool === 'arrow') {
+                elements.push({ type: 'arrow', x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY });
             } else if (currentTool === 'door') {
                 elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0, scaleX: 1, scaleY: 1 });
             } else if (currentTool === 'window') {
@@ -358,8 +381,53 @@
             }
 
             isDrawing = false;
+            document.getElementById('preview-layer').innerHTML = '';
             renderCanvas();
         });
+
+        function renderPreview() {
+            const previewGroup = document.getElementById('preview-layer');
+            previewGroup.innerHTML = '';
+            if (!startPoint || !currentMousePoint) return;
+
+            let endX = currentMousePoint.x;
+            let endY = currentMousePoint.y;
+
+            if (currentTool === 'wall' || currentTool === 'room') {
+                if (document.getElementById('chk-snap').checked && currentTool === 'wall') {
+                    if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) endY = startPoint.y;
+                    else endX = startPoint.x;
+                }
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', Math.min(startPoint.x, endX));
+                rect.setAttribute('y', Math.min(startPoint.y, endY));
+                rect.setAttribute('width', Math.abs(endX - startPoint.x));
+                rect.setAttribute('height', Math.abs(endY - startPoint.y));
+                rect.setAttribute('fill', 'none');
+                rect.setAttribute('stroke', '#cf6644');
+                rect.setAttribute('stroke-width', '2');
+                rect.setAttribute('stroke-dasharray', '4,4');
+                previewGroup.appendChild(rect);
+            } else if (currentTool === 'circle') {
+                let r = Math.hypot(endX - startPoint.x, endY - startPoint.y);
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', startPoint.x);
+                circle.setAttribute('cy', startPoint.y);
+                circle.setAttribute('r', r);
+                circle.setAttribute('fill', 'none');
+                circle.setAttribute('stroke', '#dc2626');
+                circle.setAttribute('stroke-width', '2');
+                previewGroup.appendChild(circle);
+            } else if (currentTool === 'arrow') {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', startPoint.x); line.setAttribute('y1', startPoint.y);
+                line.setAttribute('x2', endX); line.setAttribute('y2', endY);
+                line.setAttribute('stroke', '#dc2626');
+                line.setAttribute('stroke-width', '3');
+                line.setAttribute('marker-end', 'url(#arrowhead)');
+                previewGroup.appendChild(line);
+            }
+        }
 
         function distToSegment(p, p1, p2) {
             let l2 = (p2.x - p1.x)*(p2.x - p1.x) + (p2.y - p1.y)*(p2.y - p1.y);
@@ -506,7 +574,6 @@
                 text.textContent = (w.length || 400) + ' cm';
                 wallsGroup.appendChild(text);
 
-                // Poignées d'étirement aux extrémités si le mur est sélectionné
                 if (isSelected) {
                     [ {cx: w.x1, cy: w.y1}, {cx: w.x2, cy: w.y2} ].forEach(pt => {
                         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -523,9 +590,25 @@
             elements.forEach((el, index) => {
                 let isSelected = (selectedItem && selectedItem.type === 'element' && selectedItem.index === index);
                 let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.setAttribute('transform', `translate(${el.x}, ${el.y}) rotate(${el.rotation || 0}) scale(${el.scaleX || 1}, ${el.scaleY || 1})`);
+                g.setAttribute('transform', `translate(${el.x || 0}, ${el.y || 0}) rotate(${el.rotation || 0}) scale(${el.scaleX || 1}, ${el.scaleY || 1})`);
 
-                if (el.type === 'door') {
+                if (el.type === 'circle') {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', '0'); circle.setAttribute('cy', '0');
+                    circle.setAttribute('r', el.r);
+                    circle.setAttribute('fill', 'none');
+                    circle.setAttribute('stroke', isSelected ? '#e056fd' : '#dc2626');
+                    circle.setAttribute('stroke-width', '2');
+                    g.appendChild(circle);
+                } else if (el.type === 'arrow') {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', el.x1 - el.x); line.setAttribute('y1', el.y1 - el.y);
+                    line.setAttribute('x2', el.x2 - el.x); line.setAttribute('y2', el.y2 - el.y);
+                    line.setAttribute('stroke', isSelected ? '#e056fd' : '#dc2626');
+                    line.setAttribute('stroke-width', '3');
+                    line.setAttribute('marker-end', 'url(#arrowhead)');
+                    g.appendChild(line);
+                } else if (el.type === 'door') {
                     const width = el.width || 80;
                     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     arc.setAttribute('d', `M 0 -${width} A ${width} ${width} 0 0 1 ${width} 0`);
@@ -554,7 +637,6 @@
                     baseCorner.setAttribute('stroke', isSelected ? '#e056fd' : '#2563eb');
                     baseCorner.setAttribute('stroke-width', '3');
                     g.appendChild(baseCorner);
-
                 } else if (el.type === 'window') {
                     const width = el.width || 100;
                     const winRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -570,7 +652,6 @@
                     glassLine.setAttribute('x2', `${width}`); glassLine.setAttribute('y2', '0');
                     glassLine.setAttribute('stroke', '#16a34a'); glassLine.setAttribute('stroke-width', '1');
                     g.appendChild(glassLine);
-
                 } else if (el.type === 'text') {
                     const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     t.setAttribute('x', '0'); t.setAttribute('y', '0');
@@ -578,7 +659,6 @@
                     t.setAttribute('class', `font-serif-arch text-sm font-bold ${isSelected ? 'fill-[#cf6644]' : 'fill-slate-800'}`);
                     t.textContent = el.text;
                     g.appendChild(t);
-
                 } else if (el.type === 'stairs') {
                     const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                     box.setAttribute('x', '0'); box.setAttribute('y', '0');
