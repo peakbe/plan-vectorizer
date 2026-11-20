@@ -71,6 +71,9 @@
             <button onclick="setTool('stairs')" id="btn-tool-stairs" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="align-justify" class="w-3.5 h-3.5"></i><span>Escalier</span>
             </button>
+            <button onclick="setTool('landing')" id="btn-tool-landing" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
+                <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-700"></i><span>Palier</span>
+            </button>
             <button onclick="setTool('text')" id="btn-tool-text" class="tool-btn bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md font-medium transition flex items-center space-x-1 hover:bg-slate-200">
                 <i data-lucide="type" class="w-3.5 h-3.5"></i><span>Texte</span>
             </button>
@@ -100,8 +103,11 @@
         <!-- SVG Interactif -->
         <svg id="plan-canvas" class="w-full h-full cursor-crosshair z-10" viewBox="0 0 1000 700">
             <defs>
-                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
                     <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+                </marker>
+                <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#e056fd"/>
                 </marker>
             </defs>
             <g id="walls-layer"></g>
@@ -122,6 +128,19 @@
             </button>
         </div>
 
+        <!-- Contrôles de Zoom (+ / - / 100%) -->
+        <div class="absolute bottom-4 right-4 z-20 flex items-center space-x-1 bg-white/95 backdrop-blur border border-slate-200 p-1.5 rounded-xl shadow-md text-xs">
+            <button onclick="zoomOut()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition" title="Zoom arrière (-)">
+                <i data-lucide="zoom-out" class="w-4 h-4"></i>
+            </button>
+            <button onclick="resetZoom()" id="zoom-label" class="px-2 py-1 font-tech font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition" title="Réinitialiser le zoom">
+                100%
+            </button>
+            <button onclick="zoomIn()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition" title="Zoom avant (+)">
+                <i data-lucide="zoom-in" class="w-4 h-4"></i>
+            </button>
+        </div>
+
         <!-- Panneau de Propriétés & Mesures -->
         <div class="absolute top-4 right-4 z-20 bg-white/95 backdrop-blur border border-slate-200 p-3 rounded-xl shadow-md text-xs space-y-2 w-64">
             <div class="flex justify-between font-bold text-slate-700 border-b pb-1">
@@ -130,7 +149,7 @@
             </div>
             
             <div id="property-editor" class="space-y-2 text-slate-600">
-                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur, un escalier ou une pièce.</p>
+                <p class="text-[11px] text-slate-400 italic">Sélectionnez un mur, un escalier, un palier ou une pièce.</p>
             </div>
         </div>
 
@@ -190,6 +209,35 @@
         let startPoint = null;
         let currentMousePoint = null;
         let dragOffset = { x: 0, y: 0 };
+
+        // Gestion du Zoom (viewBox de base : 1000 x 700 centré)
+        const BASE_W = 1000;
+        const BASE_H = 700;
+        let zoomLevel = 1.0;
+
+        function applyZoom() {
+            const w = BASE_W / zoomLevel;
+            const h = BASE_H / zoomLevel;
+            const x = (BASE_W - w) / 2;
+            const y = (BASE_H - h) / 2;
+            svgCanvas.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+            document.getElementById('zoom-label').textContent = `${Math.round(zoomLevel * 100)}%`;
+        }
+
+        function zoomIn() {
+            zoomLevel = Math.min(3.0, +(zoomLevel + 0.2).toFixed(2));
+            applyZoom();
+        }
+
+        function zoomOut() {
+            zoomLevel = Math.max(0.4, +(zoomLevel - 0.2).toFixed(2));
+            applyZoom();
+        }
+
+        function resetZoom() {
+            zoomLevel = 1.0;
+            applyZoom();
+        }
         
         let walls = [
             {x1: 250, y1: 150, x2: 750, y2: 150, length: 500},
@@ -201,6 +249,7 @@
             { type: 'door', x: 450, y: 150, width: 80, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'window', x: 600, y: 150, width: 100, rotation: 0, scaleX: 1, scaleY: 1 },
             { type: 'stairs', x: 550, y: 300, w: 100, h: 200, rotation: 0 },
+            { type: 'landing', x: 420, y: 300, w: 100, h: 100, rotation: 0 },
             { type: 'text', x: 500, y: 350, text: 'Séjour (20.0 m²)', rotation: 0 }
         ];
         let historyStack = [];
@@ -226,13 +275,23 @@
             return pt.matrixTransform(svgCanvas.getScreenCTM().inverse());
         }
 
+        function getSnappedEnd(pStart, pEnd) {
+            let endX = pEnd.x;
+            let endY = pEnd.y;
+            if (document.getElementById('chk-snap').checked) {
+                if (Math.abs(endX - pStart.x) > Math.abs(endY - pStart.y)) endY = pStart.y;
+                else endX = pStart.x;
+            }
+            return { x: endX, y: endY };
+        }
+
         svgCanvas.addEventListener('mousedown', (e) => {
             const svgP = getSvgPoint(e);
             const x = Math.round(svgP.x);
             const y = Math.round(svgP.y);
 
             if (currentTool === 'select') {
-                // 1. Vérifier si on attrape une poignée de mur
+                // 1. Poignée de mur
                 if (selectedItem && selectedItem.type === 'wall') {
                     let w = walls[selectedItem.index];
                     if (Math.hypot(x - w.x1, y - w.y1) < 12) {
@@ -247,22 +306,29 @@
                     }
                 }
 
-                // 2. Vérifier si on attrape la poignée d'étirement d'un escalier sélectionné
-                if (selectedItem && selectedItem.type === 'element' && elements[selectedItem.index].type === 'stairs') {
+                // 2. Poignée d'étirement d'escalier ou de palier
+                if (selectedItem && selectedItem.type === 'element') {
                     let el = elements[selectedItem.index];
-                    // Poignée en bas de l'escalier pour l'étirer
-                    let rad = (el.rotation || 0) * Math.PI / 180;
-                    let handleX = el.x + el.w * Math.sin(rad) + el.h * Math.cos(rad);
-                    let handleY = el.y - el.w * Math.cos(rad) + el.h * Math.sin(rad);
-                    if (Math.hypot(x - handleX, y - handleY) < 15) {
-                        selectedItem = { type: 'stairs-handle', index: selectedItem.index };
-                        isDragging = true;
-                        return;
+                    if (el.type === 'stairs' || el.type === 'landing') {
+                        let rad = (el.rotation || 0) * Math.PI / 180;
+                        let handleX = el.x + el.w * Math.sin(rad) + el.h * Math.cos(rad);
+                        let handleY = el.y - el.w * Math.cos(rad) + el.h * Math.sin(rad);
+                        if (Math.hypot(x - handleX, y - handleY) < 15) {
+                            selectedItem = { type: 'size-handle', index: selectedItem.index };
+                            isDragging = true;
+                            return;
+                        }
                     }
                 }
 
-                // 3. Vérifier les éléments généraux ou textes
+                // 3. Éléments / textes / escaliers / paliers / cercles / flèches
                 let foundElIndex = elements.findIndex(el => {
+                    if (el.type === 'arrow') {
+                        return distToSegment({x, y}, {x: el.x1, y: el.y1}, {x: el.x2, y: el.y2}) < 12;
+                    }
+                    if (el.type === 'circle') {
+                        return Math.abs(Math.hypot(x - el.x, y - el.y) - el.r) < 12 || Math.hypot(x - el.x, y - el.y) < 15;
+                    }
                     let w = el.w || el.width || 50;
                     let h = el.h || 50;
                     return x >= el.x - 30 && x <= el.x + w + 30 && y >= el.y - 20 && y <= el.y + h + 20;
@@ -271,14 +337,15 @@
                 if (foundElIndex !== -1) {
                     selectedItem = { type: 'element', index: foundElIndex };
                     isDragging = true;
-                    dragOffset.x = x - elements[foundElIndex].x;
-                    dragOffset.y = y - elements[foundElIndex].y;
+                    let el = elements[foundElIndex];
+                    dragOffset.x = x - (el.x || el.x1 || 0);
+                    dragOffset.y = y - (el.y || el.y1 || 0);
                     updatePropertyPanel();
                     renderCanvas();
                     return;
                 }
 
-                // 4. Vérifier les murs
+                // 4. Murs
                 let foundWallIndex = walls.findIndex(w => {
                     let dist = distToSegment({x, y}, {x: w.x1, y: w.y1}, {x: w.x2, y: w.y2});
                     return dist < 12;
@@ -299,6 +366,7 @@
                 isDrawing = true;
                 startPoint = { x, y };
                 currentMousePoint = { x, y };
+                renderPreview();
             }
         });
 
@@ -309,8 +377,17 @@
             if (isDragging && selectedItem && currentTool === 'select') {
                 if (selectedItem.type === 'element') {
                     let el = elements[selectedItem.index];
-                    el.x = currentMousePoint.x - dragOffset.x;
-                    el.y = currentMousePoint.y - dragOffset.y;
+                    let newX = currentMousePoint.x - dragOffset.x;
+                    let newY = currentMousePoint.y - dragOffset.y;
+                    if (el.type === 'arrow') {
+                        let dx = newX - el.x1;
+                        let dy = newY - el.y1;
+                        el.x1 += dx; el.y1 += dy;
+                        el.x2 += dx; el.y2 += dy;
+                    } else {
+                        el.x = newX;
+                        el.y = newY;
+                    }
                     renderCanvas();
                 } else if (selectedItem.type === 'endpoint') {
                     let w = walls[selectedItem.index];
@@ -322,11 +399,10 @@
                     w.length = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1));
                     updatePropertyPanel();
                     renderCanvas();
-                } else if (selectedItem.type === 'stairs-handle') {
+                } else if (selectedItem.type === 'size-handle') {
                     let el = elements[selectedItem.index];
-                    // Calcul de la nouvelle hauteur en fonction du mouvement de la souris
                     let newH = Math.hypot(currentMousePoint.x - el.x, currentMousePoint.y - el.y);
-                    if (newH > 50) {
+                    if (newH > 40) {
                         el.h = Math.round(newH);
                         updatePropertyPanel();
                         renderCanvas();
@@ -354,8 +430,6 @@
             const widthCm = Math.abs(endX - startPoint.x);
             const heightCm = Math.abs(endY - startPoint.y);
 
-            saveState();
-
             if (currentTool === 'room' && widthCm > 20 && heightCm > 20) {
                 let rx = Math.min(startPoint.x, endX);
                 let ry = Math.min(startPoint.y, endY);
@@ -380,13 +454,10 @@
                 });
 
             } else if (currentTool === 'wall') {
-                if (document.getElementById('chk-snap').checked) {
-                    if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) endY = startPoint.y;
-                    else endX = startPoint.x;
-                }
-                let lengthCm = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
+                const snapped = getSnappedEnd(startPoint, { x: endX, y: endY });
+                let lengthCm = Math.round(Math.hypot(snapped.x - startPoint.x, snapped.y - startPoint.y));
                 if (lengthCm > 10) {
-                    walls.push({ x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY, length: lengthCm });
+                    walls.push({ x1: startPoint.x, y1: startPoint.y, x2: snapped.x, y2: snapped.y, length: lengthCm });
                 }
             } else if (currentTool === 'circle') {
                 let radius = Math.round(Math.hypot(endX - startPoint.x, endY - startPoint.y));
@@ -394,7 +465,9 @@
                     elements.push({ type: 'circle', x: startPoint.x, y: startPoint.y, r: radius });
                 }
             } else if (currentTool === 'arrow') {
-                elements.push({ type: 'arrow', x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY });
+                if (Math.hypot(endX - startPoint.x, endY - startPoint.y) > 5) {
+                    elements.push({ type: 'arrow', x1: startPoint.x, y1: startPoint.y, x2: endX, y2: endY });
+                }
             } else if (currentTool === 'door') {
                 elements.push({ type: 'door', x: startPoint.x, y: startPoint.y, width: 80, rotation: 0, scaleX: 1, scaleY: 1 });
             } else if (currentTool === 'window') {
@@ -403,6 +476,10 @@
                 let sw = Math.max(60, widthCm);
                 let sh = Math.max(100, heightCm);
                 elements.push({ type: 'stairs', x: startPoint.x, y: startPoint.y, w: sw, h: sh, rotation: 0 });
+            } else if (currentTool === 'landing') {
+                let lw = Math.max(60, widthCm);
+                let lh = Math.max(60, heightCm);
+                elements.push({ type: 'landing', x: startPoint.x, y: startPoint.y, w: lw, h: lh, rotation: 0 });
             } else if (currentTool === 'text') {
                 let txt = prompt("Texte de légende :", "Légende");
                 if (txt) elements.push({ type: 'text', x: startPoint.x, y: startPoint.y, text: txt, rotation: 0 });
@@ -421,17 +498,33 @@
             let endX = currentMousePoint.x;
             let endY = currentMousePoint.y;
 
-            if (currentTool === 'wall' || currentTool === 'room' || currentTool === 'stairs') {
-                if (document.getElementById('chk-snap').checked && currentTool === 'wall') {
-                    if (Math.abs(endX - startPoint.x) > Math.abs(endY - startPoint.y)) endY = startPoint.y;
-                    else endX = startPoint.x;
-                }
+            if (currentTool === 'wall') {
+                const snapped = getSnappedEnd(startPoint, { x: endX, y: endY });
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', startPoint.x); line.setAttribute('y1', startPoint.y);
+                line.setAttribute('x2', snapped.x); line.setAttribute('y2', snapped.y);
+                line.setAttribute('stroke', '#cf6644');
+                line.setAttribute('stroke-width', '8');
+                line.setAttribute('stroke-opacity', '0.65');
+                line.setAttribute('stroke-linecap', 'square');
+                previewGroup.appendChild(line);
+
+                const len = Math.round(Math.hypot(snapped.x - startPoint.x, snapped.y - startPoint.y));
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', (startPoint.x + snapped.x) / 2);
+                label.setAttribute('y', (startPoint.y + snapped.y) / 2 - 12);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'font-tech text-[11px] fill-[#cf6644] font-bold');
+                label.textContent = `${len} cm`;
+                previewGroup.appendChild(label);
+
+            } else if (currentTool === 'room' || currentTool === 'stairs' || currentTool === 'landing') {
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 rect.setAttribute('x', Math.min(startPoint.x, endX));
                 rect.setAttribute('y', Math.min(startPoint.y, endY));
                 rect.setAttribute('width', Math.abs(endX - startPoint.x));
                 rect.setAttribute('height', Math.abs(endY - startPoint.y));
-                rect.setAttribute('fill', currentTool === 'stairs' ? 'rgba(15, 23, 42, 0.1)' : 'none');
+                rect.setAttribute('fill', currentTool === 'room' ? 'rgba(207, 102, 68, 0.08)' : 'rgba(15, 23, 42, 0.08)');
                 rect.setAttribute('stroke', '#cf6644');
                 rect.setAttribute('stroke-width', '2');
                 rect.setAttribute('stroke-dasharray', '4,4');
@@ -460,7 +553,7 @@
         function distToSegment(p, p1, p2) {
             let l2 = (p2.x - p1.x)*(p2.x - p1.x) + (p2.y - p1.y)*(p2.y - p1.y);
             if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
-            let t =((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2;
+            let t = ((p.x - p1.x)*(p2.x - p1.x) + (p.y - p1.y)*(p2.y - p1.y)) / l2;
             t = Math.max(0, Math.min(1, t));
             return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
         }
@@ -469,7 +562,7 @@
             if (!selectedItem || selectedItem.type !== 'element') return;
             saveState();
             let el = elements[selectedItem.index];
-            el.rotation = (el.rotation + 90) % 360;
+            el.rotation = ((el.rotation || 0) + 90) % 360;
             renderCanvas();
         }
 
@@ -488,7 +581,7 @@
 
             if (!selectedItem) {
                 label.textContent = "Aucun";
-                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur ou un élément.</p>`;
+                editor.innerHTML = `<p class="text-[11px] text-slate-400 italic">Sélectionnez un mur, un escalier, un palier ou une pièce.</p>`;
                 return;
             }
 
@@ -498,7 +591,7 @@
                 editor.innerHTML = `
                     <div>
                         <label class="block text-[11px] font-medium text-slate-700 mb-1">Longueur (cm)</label>
-                        <input type="number" id="input-dim-val" value="${w.length}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                        <input type="number" id="input-dim-val" value="${w.length}" oninput="applyDimensionChange('length', this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
                     </div>
                     <div class="pt-2">
                         <button onclick="openWallPhotoModal()" class="w-full bg-[#cf6644] hover:bg-[#b85839] text-white py-1.5 rounded-lg font-medium transition flex items-center justify-center space-x-1">
@@ -507,43 +600,67 @@
                         </button>
                     </div>
                 `;
-            } else if (selectedItem.type === 'element') {
+            } else if (selectedItem.type === 'element' || selectedItem.type === 'size-handle') {
                 let el = elements[selectedItem.index];
-                label.textContent = `${el.type.charAt(0).toUpperCase() + el.type.slice(1)}`;
-                let currentVal = el.width || el.w || 80;
-                let extraControls = '';
+                const typeNames = {
+                    door: 'Porte',
+                    window: 'Fenêtre',
+                    stairs: 'Escalier',
+                    landing: 'Palier',
+                    circle: 'Cercle',
+                    arrow: 'Flèche',
+                    text: 'Texte'
+                };
+                label.textContent = typeNames[el.type] || el.type;
 
-                if (el.type === 'stairs') {
-                    currentVal = el.h;
-                    let numMarches = Math.max(4, Math.round(el.h / 25));
-                    extraControls = `
-                        <div class="mt-2">
-                            <label class="block text-[11px] font-medium text-slate-700 mb-1">Nombre de marches : <span class="font-tech text-slate-900">${numMarches}</span></label>
+                if (el.type === 'stairs' || el.type === 'landing') {
+                    let extraMarches = '';
+                    if (el.type === 'stairs') {
+                        let numMarches = Math.max(4, Math.round(el.h / 25));
+                        extraMarches = `
+                            <div class="text-[11px] text-slate-700 font-medium">
+                                Nombre de marches : <span class="font-tech text-slate-900">${numMarches}</span>
+                            </div>
+                        `;
+                    }
+                    editor.innerHTML = `
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-700 mb-1">Largeur (cm)</label>
+                            <input type="number" value="${el.w}" oninput="applyDimensionChange('w', this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-700 mb-1">Longueur / Hauteur (cm)</label>
+                            <input type="number" value="${el.h}" oninput="applyDimensionChange('h', this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                        </div>
+                        ${extraMarches}
+                        <div class="pt-2 flex space-x-1">
+                            <button onclick="rotateSelected()" class="w-full bg-blue-600 text-white py-1.5 rounded-lg font-medium flex items-center justify-center space-x-1">
+                                <i data-lucide="rotate-cw" class="w-3 h-3"></i><span>Pivoter 90°</span>
+                            </button>
                         </div>
                     `;
-                }
-
-                editor.innerHTML = `
-                    <div>
-                        <label class="block text-[11px] font-medium text-slate-700 mb-1">${el.type === 'stairs' ? 'Hauteur / Longueur totale (cm)' : 'Largeur (cm)'}</label>
-                        <input type="number" id="input-dim-val" value="${currentVal}" oninput="applyDimensionChange(this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
-                    </div>
-                    ${extraControls}
-                    <div class="pt-2 flex space-x-1">
-                        <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 text-white py-1.5 rounded-lg font-medium flex items-center justify-center space-x-1">
-                            <i data-lucide="rotate-cw" class="w-3 h-3"></i><span>Pivoter</span>
-                        </button>
-                        ${el.type !== 'stairs' ? `
+                } else if (el.type === 'door' || el.type === 'window') {
+                    editor.innerHTML = `
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-700 mb-1">Largeur (cm)</label>
+                            <input type="number" value="${el.width}" oninput="applyDimensionChange('width', this.value)" class="w-full bg-slate-50 border rounded-md p-1.5 font-tech text-xs">
+                        </div>
+                        <div class="pt-2 flex space-x-1">
+                            <button onclick="rotateSelected()" class="w-1/2 bg-blue-600 text-white py-1.5 rounded-lg font-medium flex items-center justify-center space-x-1">
+                                <i data-lucide="rotate-cw" class="w-3 h-3"></i><span>Pivoter</span>
+                            </button>
                             <button onclick="mirrorSelected('H')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]">Miroir ↔</button>
                             <button onclick="mirrorSelected('V')" class="w-1/4 bg-slate-800 text-white py-1.5 rounded-lg text-[10px]">Miroir ↕</button>
-                        ` : ''}
-                    </div>
-                `;
+                        </div>
+                    `;
+                } else {
+                    editor.innerHTML = `<p class="text-[11px] text-slate-500">Glissez l'élément pour le déplacer ou utilisez la corbeille pour le supprimer.</p>`;
+                }
             }
             lucide.createIcons();
         }
 
-        function applyDimensionChange(newVal) {
+        function applyDimensionChange(prop, newVal) {
             if (!selectedItem) return;
             let val = parseFloat(newVal);
             if (isNaN(val) || val <= 0) return;
@@ -554,10 +671,11 @@
                 w.length = val;
                 w.x2 = Math.round(w.x1 + val * Math.cos(angle));
                 w.y2 = Math.round(w.y1 + val * Math.sin(angle));
-            } else if (selectedItem.type === 'element') {
+            } else if (selectedItem.type === 'element' || selectedItem.type === 'size-handle') {
                 let el = elements[selectedItem.index];
-                if (el.type === 'door' || el.type === 'window') el.width = val;
-                else if (el.type === 'stairs') el.h = val;
+                if (prop === 'width') el.width = val;
+                else if (prop === 'w') el.w = val;
+                else if (prop === 'h') el.h = val;
             }
             renderCanvas();
         }
@@ -591,6 +709,42 @@
                     alert("Ouvrants placés automatiquement avec succès !");
                 }
             });
+        }
+
+        function drawStairsOrLandingGroup(el, isSelected) {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('transform', `translate(${el.x || 0}, ${el.y || 0}) rotate(${el.rotation || 0})`);
+
+            const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            box.setAttribute('x', '0'); box.setAttribute('y', '0');
+            box.setAttribute('width', el.w); box.setAttribute('height', el.h);
+            box.setAttribute('fill', el.type === 'landing' ? '#f1f5f9' : '#fff');
+            box.setAttribute('stroke', isSelected ? '#cf6644' : '#0f172a');
+            box.setAttribute('stroke-width', isSelected ? '3' : '2');
+            g.appendChild(box);
+
+            if (el.type === 'stairs') {
+                let numMarches = Math.max(4, Math.round(el.h / 25));
+                for (let i = 1; i < numMarches; i++) {
+                    const step = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    step.setAttribute('x1', '0'); step.setAttribute('y1', (el.h / numMarches) * i);
+                    step.setAttribute('x2', el.w); step.setAttribute('y2', (el.h / numMarches) * i);
+                    step.setAttribute('stroke', '#0f172a'); step.setAttribute('stroke-width', '1');
+                    g.appendChild(step);
+                }
+            }
+
+            if (isSelected) {
+                const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                handle.setAttribute('cx', el.w / 2); handle.setAttribute('cy', el.h);
+                handle.setAttribute('r', '7');
+                handle.setAttribute('fill', '#ffffff');
+                handle.setAttribute('stroke', '#cf6644');
+                handle.setAttribute('stroke-width', '3');
+                g.appendChild(handle);
+            }
+
+            return g;
         }
 
         function renderCanvas() {
@@ -631,7 +785,24 @@
             });
 
             elements.forEach((el, index) => {
-                let isSelected = (selectedItem && selectedItem.type === 'element' && selectedItem.index === index);
+                let isSelected = (selectedItem && (selectedItem.type === 'element' || selectedItem.type === 'size-handle') && selectedItem.index === index);
+
+                if (el.type === 'arrow') {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', el.x1); line.setAttribute('y1', el.y1);
+                    line.setAttribute('x2', el.x2); line.setAttribute('y2', el.y2);
+                    line.setAttribute('stroke', isSelected ? '#e056fd' : '#dc2626');
+                    line.setAttribute('stroke-width', '3');
+                    line.setAttribute('marker-end', isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)');
+                    elementsGroup.appendChild(line);
+                    return;
+                }
+
+                if (el.type === 'stairs' || el.type === 'landing') {
+                    elementsGroup.appendChild(drawStairsOrLandingGroup(el, isSelected));
+                    return;
+                }
+
                 let g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('transform', `translate(${el.x || 0}, ${el.y || 0}) rotate(${el.rotation || 0}) scale(${el.scaleX || 1}, ${el.scaleY || 1})`);
 
@@ -643,14 +814,6 @@
                     circle.setAttribute('stroke', isSelected ? '#e056fd' : '#dc2626');
                     circle.setAttribute('stroke-width', '2');
                     g.appendChild(circle);
-                } else if (el.type === 'arrow') {
-                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', el.x1 - el.x); line.setAttribute('y1', el.y1 - el.y);
-                    line.setAttribute('x2', el.x2 - el.x); line.setAttribute('y2', el.y2 - el.y);
-                    line.setAttribute('stroke', isSelected ? '#e056fd' : '#dc2626');
-                    line.setAttribute('stroke-width', '3');
-                    line.setAttribute('marker-end', 'url(#arrowhead)');
-                    g.appendChild(line);
                 } else if (el.type === 'door') {
                     const width = el.width || 80;
                     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -702,33 +865,6 @@
                     t.setAttribute('class', `font-serif-arch text-sm font-bold ${isSelected ? 'fill-[#cf6644]' : 'fill-slate-800'}`);
                     t.textContent = el.text;
                     g.appendChild(t);
-                } else if (el.type === 'stairs') {
-                    const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    box.setAttribute('x', '0'); box.setAttribute('y', '0');
-                    box.setAttribute('width', el.w); box.setAttribute('height', el.h);
-                    box.setAttribute('fill', '#fff'); box.setAttribute('stroke', isSelected ? '#cf6644' : '#0f172a'); box.setAttribute('stroke-width', isSelected ? '3' : '2');
-                    g.appendChild(box);
-
-                    // Calcul dynamique du nombre de marches selon la hauteur h
-                    let numMarches = Math.max(4, Math.round(el.h / 25));
-                    for(let i=1; i<numMarches; i++) {
-                        const step = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        step.setAttribute('x1', '0'); step.setAttribute('y1', (el.h/numMarches)*i);
-                        step.setAttribute('x2', el.w); step.setAttribute('y2', (el.h/numMarches)*i);
-                        step.setAttribute('stroke', '#0f172a'); step.setAttribute('stroke-width', '1');
-                        g.appendChild(step);
-                    }
-
-                    // Poignée interactive d'étirement en bas de l'escalier si sélectionné
-                    if (isSelected) {
-                        const handle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                        handle.setAttribute('cx', el.w / 2); handle.setAttribute('cy', el.h);
-                        handle.setAttribute('r', '7');
-                        handle.setAttribute('fill', '#ffffff');
-                        handle.setAttribute('stroke', '#cf6644');
-                        handle.setAttribute('stroke-width', '3');
-                        g.appendChild(handle);
-                    }
                 }
 
                 elementsGroup.appendChild(g);
@@ -750,7 +886,7 @@
             if (!selectedItem) { alert("Sélectionnez un élément à supprimer."); return; }
             saveState();
             if (selectedItem.type === 'wall' || selectedItem.type === 'endpoint') walls.splice(selectedItem.index, 1);
-            else if (selectedItem.type === 'element' || selectedItem.type === 'stairs-handle') elements.splice(selectedItem.index, 1);
+            else if (selectedItem.type === 'element' || selectedItem.type === 'size-handle') elements.splice(selectedItem.index, 1);
             selectedItem = null;
             updatePropertyPanel();
             renderCanvas();
