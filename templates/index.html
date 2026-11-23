@@ -6,6 +6,7 @@
     <title>ArchPlan Studio - Éditeur de Plans Architecturaux</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap');
         
@@ -923,16 +924,107 @@
         }
         function closeWallPhotoModal() { document.getElementById('modal-wall-photo').classList.add('hidden'); }
 
-        function exportPDF() {
-            fetch('/api/export-pdf', { method: 'POST' })
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = 'plan_architecte.pdf';
-                document.body.appendChild(a); a.click(); a.remove();
-            });
+       function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const svgEl = document.getElementById('plan-canvas');
+
+    // Cloner le SVG pour ne pas altérer l'affichage courant
+    const clone = svgEl.cloneNode(true);
+
+    // Appliquer les styles de police/couleurs en ligne pour qu'ils soient conservés lors de l'export image
+    clone.querySelectorAll('text').forEach(t => {
+        if (t.classList.contains('font-tech')) {
+            t.style.fontFamily = 'JetBrains Mono, monospace';
+            t.style.fontSize = '11px';
+            t.style.fontWeight = '600';
+            t.style.fill = '#cf6644';
+        } else if (t.classList.contains('font-serif-arch')) {
+            t.style.fontFamily = 'Playfair Display, serif';
+            t.style.fontSize = '15px';
+            t.style.fontWeight = '700';
+            t.style.fill = '#1e293b';
         }
+    });
+
+    const serializer = new XMLSerializer();
+    let svgString = serializer.serializeToString(clone);
+
+    // S'assurer que l'attribut xmlns est présent
+    if (!svgString.includes('xmlns="http://www.w3.org/2000/svg"')) {
+        svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
+
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = function () {
+        const scale = 2; // Haute résolution pour une impression nette
+        const canvas = document.createElement('canvas');
+        canvas.width = 1000 * scale;
+        canvas.height = 700 * scale;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+
+        // Fond papier plan clair
+        ctx.fillStyle = '#fbf9f4';
+        ctx.fillRect(0, 0, 1000, 700);
+
+        // Dessiner le plan SVG
+        ctx.drawImage(img, 0, 0, 1000, 700);
+        URL.revokeObjectURL(url);
+
+        // Création du PDF A4 (en mm : 210 x 297)
+        const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+
+        // En-tête du dossier
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(13);
+        pdf.text('DOSSIER ARCHITECTURAL - PLAN DE PROJET', 12, 14);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.text('Projet : Maison Principale | Export direct navigateur | Format A4', 12, 20);
+
+        // Image du plan centrée et proportionnelle
+        const margin = 12;
+        const topOffset = 25;
+        const availW = pageW - margin * 2;
+        const availH = pageH - topOffset - 15;
+        const ratio = Math.min(availW / 1000, availH / 700);
+        const drawW = 1000 * ratio;
+        const drawH = 700 * ratio;
+        const drawX = (pageW - drawW) / 2;
+
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        pdf.addImage(imgData, 'PNG', drawX, topOffset, drawW, drawH);
+
+        // Pied de page avec surfaces calculées dynamiquement si des libellés m² sont présents
+        const surfaceTexts = elements
+            .filter(el => el.type === 'text' && el.text)
+            .map(el => el.text)
+            .join(' | ');
+
+        pdf.setFontSize(9);
+        pdf.text(surfaceTexts || 'Plan architectural', 12, pageH - 7);
+
+        pdf.save('plan_architecte.pdf');
+    };
+
+    img.onerror = function () {
+        URL.revokeObjectURL(url);
+        alert("Erreur lors de la génération du rendu SVG pour l'export PDF.");
+    };
+
+    img.src = url;
+}
 
         renderCanvas();
     </script>
