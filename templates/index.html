@@ -682,35 +682,64 @@
         }
 
         function processWallPhotoAI() {
-            if (!selectedItem || (selectedItem.type !== 'wall' && selectedItem.type !== 'endpoint')) return;
-            let w = walls[selectedItem.index];
+    if (!selectedItem || (selectedItem.type !== 'wall' && selectedItem.type !== 'endpoint')) {
+        alert("Veuillez d'abord sélectionner un mur.");
+        return;
+    }
 
-            const formData = new FormData();
-            formData.append('wallLength', w.length);
+    const w = walls[selectedItem.index];
+    const fileInput = document.getElementById('wall-photo-file');
+    const formData = new FormData();
 
-            fetch('/api/detect-openings', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    saveState();
-                    let angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1) * (180 / Math.PI);
-                    data.openings.forEach(op => {
-                        let ratio = op.position / w.length;
-                        elements.push({
-                            type: op.type === 'porte' ? 'door' : 'window',
-                            x: Math.round(w.x1 + ratio * (w.x2 - w.x1)),
-                            y: Math.round(w.y1 + ratio * (w.y2 - w.y1)),
-                            width: op.width || 90,
-                            rotation: Math.round(angle),
-                            scaleX: 1, scaleY: 1
-                        });
-                    });
-                    closeWallPhotoModal();
-                    renderCanvas();
-                    alert("Ouvrants placés automatiquement avec succès !");
-                }
-            });
+    formData.append('wallLength', w.length);
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        formData.append('photo', fileInput.files[0]);
+    }
+
+    fetch('/api/detect-openings', {
+        method: 'POST',
+        body: formData
+    })
+    .then(async (res) => {
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`HTTP ${res.status} : ${errText || 'Route /api/detect-openings introuvable'}`);
         }
+        return res.json();
+    })
+    .then((data) => {
+        if (data.status === 'success' && Array.isArray(data.openings)) {
+            saveState();
+            const angleDeg = Math.atan2(w.y2 - w.y1, w.x2 - w.x1) * (180 / Math.PI);
+
+            data.openings.forEach((op) => {
+                const ratio = Math.max(0, Math.min(1, (op.position || 0) / (w.length || 1)));
+                const posX = w.x1 + ratio * (w.x2 - w.x1);
+                const posY = w.y1 + ratio * (w.y2 - w.y1);
+
+                elements.push({
+                    type: op.type === 'porte' ? 'door' : 'window',
+                    x: Math.round(posX),
+                    y: Math.round(posY),
+                    width: op.width || 90,
+                    rotation: Math.round(angleDeg),
+                    scaleX: 1,
+                    scaleY: 1
+                });
+            });
+
+            closeWallPhotoModal();
+            renderCanvas();
+            alert(`${data.openings.length} ouvrant(s) placé(s) automatiquement.`);
+        } else {
+            alert("Réponse inattendue de l'analyse IA.");
+        }
+    })
+    .catch((err) => {
+        console.error('Erreur analyse mur :', err);
+        alert(`Échec de l'analyse : ${err.message}`);
+    });
+}
 
         function drawStairsOrLandingGroup(el, isSelected) {
             const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
